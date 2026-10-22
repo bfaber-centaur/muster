@@ -3,6 +3,8 @@ package lab
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/bubskee/muster/engine"
 )
 
 // Bundle is every lab serialized with its raw YAML, for environments without
@@ -17,6 +19,19 @@ type BundleLab struct {
 	ScenarioYAML string          `json:"scenario_yaml"`
 	ControlsYAML string          `json:"controls_yaml"`
 	Variants     []BundleVariant `json:"variants"`
+
+	// Compiled holds every trace already parsed, for the browser engine,
+	// which has no YAML parser. LoadBundle ignores it.
+	Compiled []CompiledTrace `json:"compiled,omitempty"`
+}
+
+type CompiledTrace struct {
+	ID       string                `json:"id"`
+	Label    string                `json:"label"`
+	Kind     string                `json:"kind,omitempty"`
+	Note     string                `json:"note,omitempty"`
+	Scenario engine.Scenario       `json:"scenario"`
+	Controls []engine.EventControl `json:"controls"`
 }
 
 type BundleVariant struct {
@@ -40,6 +55,20 @@ func NewBundle(labs []*Lab) Bundle {
 				ScenarioYAML: v.ScenarioYAML,
 				ControlsYAML: v.ControlsYAML,
 			})
+		}
+		for _, t := range l.Traces() {
+			ct := CompiledTrace{ID: t.ID, Label: t.Label, Scenario: t.Scenario}
+			for _, mv := range l.Manifest.Variants {
+				if mv.ID == t.ID {
+					ct.Kind, ct.Note = mv.Kind, mv.Note
+				}
+			}
+			for _, c := range t.Controls.Controls {
+				if ec, ok := c.(engine.EventControl); ok {
+					ct.Controls = append(ct.Controls, ec)
+				}
+			}
+			bl.Compiled = append(bl.Compiled, ct)
 		}
 		b.Labs = append(b.Labs, bl)
 	}

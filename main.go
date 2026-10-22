@@ -224,7 +224,7 @@ func usage() {
   muster lab --file LAB.yaml [--choices V1,R1 | --preset LABEL] [--variant ID] [--json]
   muster search --file LAB.yaml [--variant ID] [--tradeoffs] [--json]
   muster robust --file LAB.yaml [--json]
-  muster bundle [--root examples] [--out web/labs.json]
+  muster bundle [--root examples] [--out labs.json] [--golden golden.json]
 
 examples:
   muster replay --scenario examples/gate2-between.yaml --controls examples/gate2-broad-correlated.yaml

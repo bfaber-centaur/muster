@@ -259,12 +259,27 @@ func bundleRun(args []string) error {
 	flags.SetOutput(os.Stderr)
 	root := flags.String("root", "examples", "directory searched for lab.yaml files")
 	out := flags.String("out", "", "output file (default stdout)")
+	golden := flags.String("golden", "", "also write every replay of every lab here, for checking the browser engine")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	labs, err := lab.LoadAll(*root)
 	if err != nil {
 		return err
+	}
+	if *golden != "" {
+		runs, err := lab.Golden(labs)
+		if err != nil {
+			return err
+		}
+		f, err := os.Create(*golden)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if err := json.NewEncoder(f).Encode(runs); err != nil {
+			return err
+		}
 	}
 	w := io.Writer(os.Stdout)
 	if *out != "" {
