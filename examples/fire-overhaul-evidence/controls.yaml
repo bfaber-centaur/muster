@@ -1,0 +1,89 @@
+# Control pool for fire-overhaul-evidence. Each lab choice maps to one or more
+# of these engine controls (see lab.yaml `choices`).
+id: fire-overhaul-evidence-controls
+
+controls:
+  # V1 — Firefighters look for and report arson indicators on arrival.
+  # [NIJ 3.A: observe and note fire patterns, multiple fire locations, trailers,
+  #  devices; USFA: firefighters are "the eyes and ears" of investigators]
+  - id: note-arson-indicators
+    role: vedette
+    events: [firefighters-arrive]
+    requires:
+      present: [sign:incendiary-indicators]
+    substrate: company-observation
+    action: observe
+    effects:
+      add: [alert:suspicious-fire]
+
+  # R2 — Request a fire investigator for the fire (called at knockdown,
+  # arrives later — the examination is a later event).
+  - id: call-investigator
+    role: reserve
+    events: [knockdown]
+    substrate: dispatch
+    action: respond
+    effects:
+      add: [investigator:called]
+
+  # R1 — Routine full overhaul right away: open walls/ceilings, pull and soak
+  # contents. Clears hidden fire [DUNN], and destroys origin evidence
+  # [NIJ 3.B "Overhaul activities that destroy fire patterns"]. Skipped if a hold
+  # is in force.
+  - id: full-overhaul-now
+    role: reserve
+    events: [overhaul-window]
+    requires:
+      absent: [overhaul:on-hold]
+    substrate: suppression-crew
+    action: respond
+    effects:
+      remove: [hazard:hidden-fire, hazard:deep-seated-fire, evidence:origin-patterns]
+
+  # R4 — Targeted overhaul: thermal camera, small inspection holes, minimum
+  # disturbance [CB: "perform the minimum amount of overhaul consistent with the
+  # objectives of detecting fire and preventing rekindle"; Soong 2019 on TICs].
+  # Clears hidden fire a camera can find; leaves origin evidence. It does NOT
+  # clear deep-seated fire (only present in the deep-seated variant) [PHX: "a TIC
+  # may not be able to detect small hot spots"].
+  - id: targeted-overhaul
+    role: reserve
+    events: [overhaul-window]
+    substrate: suppression-crew
+    action: respond
+    effects:
+      remove: [hazard:hidden-fire]
+
+  # R3 — Hold overhaul for the investigator when arson is suspected
+  # [USFA: "Do not overhaul prior to the arrival of the fire investigator";
+  #  NFA lane for firefighters: "Delay overhaul & overhaul"].
+  # Two parts: (a) the hold, which needs a suspicion alert AND an investigator
+  # actually on the way, and is not applied if the scene is already examined;
+  # (b) the deferred full overhaul once the investigator has examined the scene.
+  - id: hold-overhaul-for-investigator
+    events: [overhaul-window]
+    requires:
+      present: [alert:suspicious-fire, investigator:called]
+      absent: [scene:examined]
+    substrate: incident-command
+    action: escalate
+    effects:
+      add: [overhaul:on-hold]
+
+  - id: overhaul-after-examination
+    role: reserve
+    events: [origin-cause-examination]
+    substrate: suppression-crew
+    action: respond
+    effects:
+      remove: [hazard:hidden-fire, hazard:deep-seated-fire, overhaul:on-hold]
+
+  # P1 — Fire watch: a crew stays and monitors spot fires until the investigator
+  # arrives [PHX: "it may be necessary to monitor spot fires until investigators
+  # arrive on the scene"]. Blocks the rekindle while crews would otherwise be
+  # gone; it does not cover the period after the scene is released.
+  - id: fire-watch-until-investigator
+    role: picket
+    events: [rekindle-after-crews-leave, deep-rekindle-after-crews-leave]
+    substrate: suppression-crew
+    action: block

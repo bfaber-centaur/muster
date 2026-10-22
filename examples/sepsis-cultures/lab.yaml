@@ -1,0 +1,161 @@
+id: sepsis-cultures
+title: Sepsis, cultures and the first dose
+domain: medicine
+kind: illustrative
+order: 60
+summary: >
+  A patient with suspected sepsis has a bloodstream infection that the usual
+  first-line antibiotics do not cover. Giving antibiotics fast saves time, but
+  a blood culture drawn after the first dose often grows nothing, and then
+  nobody learns which drug would actually work. Choose how to balance speed
+  against evidence.
+note: >
+  Educational model, not clinical guidance. It compresses a textbook mechanism
+  from published studies and the Surviving Sepsis Campaign guidelines; it does
+  not describe a real patient, and it should not be used to make treatment
+  decisions.
+scenario: scenario.yaml
+controls: controls.yaml
+
+adverse:
+  - fact: harm:antibiotics-delayed
+    label: first antibiotic dose came late
+  - fact: gap:organism-unknown
+    label: organism never identified
+  - fact: infection:uncovered
+    label: infection not covered by the antibiotics given
+  - fact: therapy:broad-spectrum
+    label: still on broad antibiotics, never narrowed
+
+events:
+  sepsis-recognised: Sepsis recognised
+  fluid-bolus: IV fluid bolus given
+  fast-track-antibiotics-after-cultures: Fast-track first dose, after cultures
+  fast-track-antibiotics-before-cultures: Fast-track first dose, before any culture
+  draw-cultures-before-antibiotics: Blood cultures drawn, no antibiotic yet
+  draw-cultures-after-antibiotics: Blood cultures drawn after the first dose
+  routine-antibiotics: First dose after the routine workup
+  culture-result: Culture grows the organism
+  culture-result-after-antibiotics: Post-dose culture still grows the organism
+  targeted-therapy: Switch to a drug the organism is known to respond to
+  reassess-at-48h: Bedside reassessment after a day or two
+  relapse-after-blind-narrowing: Infection returns after narrowing blind
+
+facts:
+  patient:septic: patient has sepsis
+  patient:difficult-venous-access: blood is hard to draw quickly
+  patient:antibiotic-exposed: antibiotic already in the patient's blood
+  organism:in-blood: bacteria in the bloodstream
+  organism:resistant: organism resists the usual first-line antibiotics
+  infection:uncovered: infection not covered by the antibiotics given
+  gap:organism-unknown: organism not yet identified
+  risk:no-antibiotics-yet: no antibiotic given yet
+  harm:antibiotics-delayed: first antibiotic dose came late
+  care:sepsis-recognised: sepsis recognised
+  care:fluid-bolus: IV fluids given
+  care:fast-track-ordered: fast-track antibiotics ordered
+  care:on-antibiotics: on antibiotics
+  care:targeted-therapy: on a drug chosen from the culture result
+  care:reassessed: patient reassessed
+  care:broadened-at-review: antibiotics broadened at review
+  care:narrowed-without-culture: antibiotics narrowed without a culture result
+  lab:sample-pre-antibiotic: culture sample taken before any antibiotic
+  lab:sample-post-antibiotic: culture sample taken after the first dose
+  lab:organism-identified: organism and its drug sensitivities known
+  therapy:broad-spectrum: on broad antibiotics
+
+choices:
+  - key: V1
+    role: vedette
+    label: Draw cultures at recognition
+    controls: [draw-cultures-at-recognition]
+    help: Take blood cultures the moment sepsis is recognised, before any antibiotic, if it can be done quickly.
+  - key: P1
+    role: picket
+    label: Hold antibiotics until cultures are drawn
+    controls: [hold-antibiotics-for-cultures]
+    help: A strict cultures-first rule that stops the fast-track dose until a pre-antibiotic culture exists, however long that takes.
+  - key: R1
+    role: reserve
+    label: Fast-track antibiotics
+    controls: [order-fast-track-antibiotics]
+    help: Give the first-line antibiotics within the hour of recognising sepsis.
+  - key: R2
+    role: reserve
+    label: Broad cover from the first dose
+    controls: [broad-empiric-cover]
+    help: Add drugs that also cover resistant bacteria to the first dose, before anything is known about the organism.
+  - key: R3
+    role: reserve
+    label: Broaden if not improving
+    controls: [broaden-if-not-improving]
+    help: At the bedside review, switch to broader antibiotics if the patient is not getting better and no culture has come back.
+  - key: R4
+    role: reserve
+    label: Narrow on improvement anyway
+    controls: [narrow-on-improvement]
+    help: At the bedside review, step broad antibiotics down if the patient is improving, even without a culture result.
+
+presets:
+  - label: Antibiotics first
+    choices: [R1]
+    note: The dose is on time, but the culture is drawn after it and grows nothing.
+  - label: Cultures first, then antibiotics within the hour
+    choices: [V1, R1]
+    note: The ordering the Surviving Sepsis Campaign recommends when cultures cause no substantial delay.
+  - label: Strict cultures-first
+    choices: [V1, P1, R1]
+    note: Like the guideline ordering, but antibiotics wait for cultures with no time limit.
+  - label: Fast and broad
+    choices: [R1, R2]
+    note: Antibiotics within the hour that also cover resistant bacteria, before any culture.
+  - label: Fast, broad and reassess
+    choices: [R1, R2, R3, R4]
+    note: Treat fast and broad without a culture, then step down on improvement.
+
+variants:
+  - id: susceptible-organism
+    label: First-line antibiotics cover the organism
+    kind: alternative-branch
+    scenario: variants/susceptible-organism.yaml
+    note: >
+      The usual empiric regimen works on this organism. Losing the culture now
+      costs knowledge, not effective treatment.
+  - id: grows-despite-antibiotics
+    label: Culture grows even after the first dose
+    kind: alternative-branch
+    scenario: variants/grows-despite-antibiotics.yaml
+    note: >
+      Post-dose cultures still grow in about half of bacteremic patients, so
+      antibiotics-first does not always destroy the evidence.
+  - id: difficult-access
+    label: Cultures can't be drawn quickly
+    kind: alternative-branch
+    scenario: variants/difficult-access.yaml
+    note: >
+      Blood is hard to draw at recognition, so drawing cultures first would
+      cost time. Drawing cultures at recognition (V1) is unavailable.
+  - id: fluid-bolus
+    label: IV fluid bolus added
+    kind: perturbation
+    scenario: variants/fluid-bolus.yaml
+    note: A fluid bolus is given after recognition. Nothing else reads it, so nothing should change.
+
+sources:
+  - title: >
+      Cheng MP et al. Blood Culture Results Before and After Antimicrobial
+      Administration in Patients With Severe Manifestations of Sepsis: A
+      Diagnostic Study. Ann Intern Med 2019;171(8):547-554 (PubMed record)
+    url: https://pubmed.ncbi.nlm.nih.gov/31525774/
+  - title: Cheng et al. 2019 abstract, reproduced by IVTEAM (numbers used here)
+    url: https://ivteam.com/intravenous-literature/blood-culture-results-before-and-after-antimicrobial-administration/
+  - title: The Bottom Line - FABLED study summary (secondary results, limitations)
+    url: https://www.thebottomline.org.uk/summaries/icm/fabled/
+  - title: >
+      Seymour CW et al. Time to Treatment and Mortality during Mandated
+      Emergency Care for Sepsis. N Engl J Med 2017;376:2235-2244
+    url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5538258/
+  - title: >
+      Evans L et al. Surviving Sepsis Campaign: International Guidelines for
+      Management of Sepsis and Septic Shock 2021. Intensive Care Med 2021
+    url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8486643/

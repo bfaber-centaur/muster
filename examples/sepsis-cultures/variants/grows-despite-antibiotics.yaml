@@ -1,0 +1,126 @@
+# VARIANT (alternative-branch): the blood culture drawn after the first dose
+# still grows the organism. Antibiotics-first then destroys no evidence, so any
+# finding that depends on lost identification should disappear.
+# EDUCATIONAL MODEL, NOT CLINICAL GUIDANCE. Source keys ([CHENG], [SEYMOUR],
+# [SSC]) are defined in ../scenario.yaml.
+id: sepsis-cultures-grows-despite-antibiotics
+
+initial_facts:
+  - patient:septic
+  - organism:in-blood            # bacteremic subset only; ~31% in [CHENG]
+  - organism:resistant           # not covered by the standard empiric regimen
+  - infection:uncovered          # no effective antibiotic on board yet
+  - gap:organism-unknown         # nobody yet knows what the organism is
+  - risk:no-antibiotics-yet
+
+events:
+  # t = 0. Sepsis is recognised. Fast-track antibiotics (R1) and drawing
+  # cultures at recognition (V1) attach here. [SSC]
+  - id: sepsis-recognised
+    requires:
+      present: [patient:septic]
+    effects:
+      add: [care:sepsis-recognised]
+
+  # Within the first hour, only if the fast-track was ordered. [SSC Rec 12]
+  # Two mutually exclusive events: the fast-tracked dose either follows a
+  # culture already drawn at recognition (V1) or goes in before any culture.
+  # P1 (strict cultures-first) blocks only the second one. The standard empiric
+  # regimen does not cover this patient's organism, so infection:uncovered is
+  # NOT removed here (it is in the susceptible variant).
+  - id: fast-track-antibiotics-after-cultures
+    requires:
+      present: [care:fast-track-ordered, lab:sample-pre-antibiotic]
+      absent: [care:on-antibiotics]
+    effects:
+      add: [care:on-antibiotics, patient:antibiotic-exposed]
+      remove: [risk:no-antibiotics-yet]
+
+  - id: fast-track-antibiotics-before-cultures
+    requires:
+      present: [care:fast-track-ordered]
+      absent: [care:on-antibiotics, lab:sample-pre-antibiotic]
+    effects:
+      add: [care:on-antibiotics, patient:antibiotic-exposed]
+      remove: [risk:no-antibiotics-yet]
+
+  # Routine culture draw during the workup. Two mutually exclusive events at
+  # the same moment: which one applies depends on whether an antibiotic has
+  # already reached the patient. [CHENG: post-antimicrobial cultures were drawn
+  # within 120 min of the first dose, median 70 min.]
+  - id: draw-cultures-before-antibiotics
+    requires:
+      present: [care:sepsis-recognised]
+      absent: [patient:antibiotic-exposed, lab:sample-pre-antibiotic]
+    effects:
+      add: [lab:sample-pre-antibiotic]
+
+  - id: draw-cultures-after-antibiotics
+    requires:
+      present: [care:sepsis-recognised, patient:antibiotic-exposed]
+      absent: [lab:sample-pre-antibiotic]
+    effects:
+      add: [lab:sample-post-antibiotic]
+
+  # Without the fast-track, the first dose comes after the workup. The model
+  # treats that as past the first hour (an assumption of the baseline). [SEYMOUR]
+  - id: routine-antibiotics
+    requires:
+      present: [care:sepsis-recognised]
+      absent: [care:on-antibiotics]
+    effects:
+      add: [care:on-antibiotics, patient:antibiotic-exposed, harm:antibiotics-delayed]
+      remove: [risk:no-antibiotics-yet]
+
+  # Culture result (typically a day or more later). Only a pre-antibiotic
+  # sample grows in the baseline: this trace is the false-negative case for a
+  # post-antibiotic sample, which [CHENG] found in about half of patients who
+  # were bacteremic beforehand. The variant grows-despite-antibiotics covers
+  # the other half.
+  - id: culture-result
+    requires:
+      present: [lab:sample-pre-antibiotic, organism:in-blood]
+    effects:
+      add: [lab:organism-identified]
+      remove: [gap:organism-unknown]
+
+  # VARIANT: the post-antibiotic sample still grows the organism. [CHENG:
+  # post-antimicrobial sensitivity 52.9%; The Bottom Line's summary of a
+  # secondary analysis reports 66.7% positivity when the organism was not
+  # susceptible to the antibiotic given.]
+  - id: culture-result-after-antibiotics
+    requires:
+      present: [lab:sample-post-antibiotic, organism:in-blood]
+    effects:
+      add: [lab:organism-identified]
+      remove: [gap:organism-unknown]
+
+  # Directed / targeted phase once pathogen and susceptibilities are known:
+  # switch to a drug the organism is susceptible to, and narrow any broad
+  # empiric cover. [SSC]
+  - id: targeted-therapy
+    requires:
+      present: [lab:organism-identified]
+    effects:
+      add: [care:targeted-therapy]
+      remove: [infection:uncovered, therapy:broad-spectrum]
+
+  # Bedside reassessment a day or two in. Reserve choices R3 (broaden if not
+  # improving) and R4 (narrow on improvement even without a culture) attach
+  # here. [SSC: daily assessment for de-escalation; "thoughtful de-escalation
+  # ... based on adequate clinical improvement is appropriate even if cultures
+  # are negative".]
+  - id: reassess-at-48h
+    requires:
+      present: [care:sepsis-recognised]
+    effects:
+      add: [care:reassessed]
+
+  # INFERENCE (not from a cited source): narrowing without a culture result,
+  # when the organism is in fact resistant to the narrow regimen, leaves the
+  # infection uncovered again. Does nothing for a susceptible organism.
+  - id: relapse-after-blind-narrowing
+    requires:
+      present: [care:narrowed-without-culture, organism:resistant]
+    effects:
+      add: [infection:uncovered]
