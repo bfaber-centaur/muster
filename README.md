@@ -28,6 +28,13 @@ It was built alongside **Watchline**, a role-based model of layered defense.
 
 > **You cannot defend every transition. Where do you place your watchline?**
 
+**Try it in your browser:** [Muster Lab](https://bfaber-centaur.github.io/muster/)
+replays eight scenarios (cyber intrusions, AI-agent incidents, an offshore
+blowout, a bank heist, sepsis care, and fire investigation) on the same engine,
+with a search for defenses that backfire and a check of how each defense holds
+up when events go differently. To build it locally, run `./web/build.sh` and
+open `web/dist/index.html`.
+
 ## Why?
 
 Post-incident analysis often asks:
@@ -57,9 +64,26 @@ event. The evidence needed to trigger credential revocation is never generated,
 the stolen credential survives, and the attacker reaches the node.
 
 This is a **synthetic existence proof**, not a claim about the Hugging Face
-incident. The mechanism is the point:
+incident, and not evidence that early isolation generally makes incidents
+worse. The mechanism is the point:
 
 > **Containment is not always causally independent of investigation.**
+
+Incident responders know the tension: NIST SP 800-61 lists "need for
+evidence preservation" among the criteria for choosing a containment
+strategy. Muster turns that judgment call into something you can check
+against a specific trace: which response loses which evidence, and what that
+leaves reachable.
+
+The same mechanism is written into professional guidance in other fields.
+Fire-investigation guidance warns that overhaul (tearing out smouldering
+material so a fire cannot rekindle) done before an investigator looks can
+destroy the evidence of how a fire started. Sepsis guidelines ask for blood
+cultures before the first antibiotic dose where that causes no real delay,
+because antibiotics first lower the chance of ever identifying the organism.
+Both are modeled as labs (`examples/fire-overhaul-evidence`,
+`examples/sepsis-cultures`), and both show the same shape, along with the
+tradeoff that makes it hard: the early action buys something real.
 
 You can reproduce the comparison directly:
 
@@ -94,7 +118,10 @@ Muster lets you test those placements against an incident path.
 
 The easiest way to understand Muster is to **build a Watchline and replay an incident**.
 
-Open [`notebooks/muster_lab.ipynb`](notebooks/muster_lab.ipynb).
+The quickest route is the [browser lab](https://bfaber-centaur.github.io/muster/).
+Nothing to install.
+
+The original Jupyter lab is still here too: open [`notebooks/muster_lab.ipynb`](notebooks/muster_lab.ipynb).
 
 Start with the **Toy incident**. Pick defenses, run the replay, and see what the attacker can still reach. Change your Watchline and try again.
 
@@ -209,6 +236,70 @@ compressed scenario, controls, provenance, and caveats.
 go run . experiment --file experiments/anthropic-pypi-2026.yaml
 ```
 
+## Backfire search and robustness
+
+Each scenario has a **lab manifest** (`lab.yaml`) beside its scenario and
+control pool. The manifest names the adverse outcomes, groups engine controls
+into human-facing choices, defines presets, and lists **alternative versions
+of events**. It only selects; replay semantics stay in the scenario YAML and
+the Go engine.
+
+```bash
+go run . lab    --file examples/toy-jackpot/lab.yaml --preset "Strong but brittle"
+go run . search --file examples/toy-jackpot/lab.yaml
+go run . robust --file examples/hf-july-2026/lab.yaml
+go run . survey
+```
+
+**`search`** replays every subset of a lab's choices and reports the smallest
+cases where adding one defense makes the outcome strictly worse: the adverse
+set after is a strict superset of the set before. Nobody has to think of the
+JACKPOT pair first. On the toy, the search finds it unprompted, along with a
+second form of it: once the early-isolation response is in place, *adding the
+detector that triggers it* also makes things worse. `--tradeoffs` also lists
+defenses that remove one harm and open another.
+
+**`robust`** replays every preset against the recorded trace and each
+alternative version, and checks whether each backfire survives. Alternatives
+come in three kinds:
+
+* **failed attempt**: the record shows something the adversary tried that a
+  defense stopped. The variant asks what happens if that defense had not held.
+  A replay of a known incident takes these defenses for granted.
+* **alternative branch**: a plausible different route or ordering.
+* **perturbation**: a change that should not matter, as a control check.
+
+For example, Hugging Face's timeline lists attempts that failed: Hub
+production database connections that "never completed" behind a private-link
+allowlist, and cloud-role calls that were "denied by the role's policy". Taking
+those away changes which Watchlines still hold. Only early paging plus worker
+isolation gives the same result in every version, because it acts at the
+first foothold. Even layered prevention fails once the private-link allowlist
+does. See [`examples/hf-july-2026/`](examples/hf-july-2026/).
+
+**`survey`** runs both over every lab:
+
+<!-- survey:start -->
+<!-- survey:end -->
+
+A few things this table says:
+
+* **No public-record incident here contains a backfire.** On the recorded
+  traces and every alternative, adding a defense never made things strictly
+  worse. In these incidents, ordinary dependency reasoning gives the replay's
+  answer.
+* **Backfires appear exactly where a response destroys evidence a later
+  response needs**: the synthetic toy, fire overhaul, and sepsis care. In the
+  last two the mechanism comes from published guidance, not from the model's
+  construction. In sepsis the recorded case is a *tradeoff* (antibiotics first
+  avoid a late dose but lose the organism); it becomes a strict backfire when
+  the organism turns out to be susceptible and broad therapy can never be
+  narrowed.
+* **Most presets are fragile.** In most labs, most Watchlines that work on the
+  recorded incident give a different result in at least one alternative
+  version. The recorded trace flatters defenses placed where the adversary
+  happened to go.
+
 ## Model semantics and limits
 
 Muster is intentionally small and **attack-graph-like**. The claim is not that
@@ -224,10 +315,15 @@ The model is simple:
   escalate, or respond.
 * **Reserves** can change persistent state, so defensive history can affect
   later reachability.
+* Only controls that act count. A Picket that is suppressed or still waiting
+  on a requirement does not block its event. (Before October 2026 it did; no
+  published result depended on that, but one Gate 2 summary reported an
+  observation by a suppressed Vedette.)
 
 Deliberate limitations:
 
-* event order and attack relationships are supplied by the scenario;
+* event order and attack relationships are supplied by the scenario, and
+  alternative versions are supplied by hand, not generated;
 * replay is single-pass, and skipped events are not retried;
 * there is no probability, continuous time, attacker adaptation, or automatic
   cost model;
@@ -271,6 +367,22 @@ go run . replay \
 ```
 
 Scenario configuration lives in YAML; replay semantics remain in Go.
+
+Lab commands work on a lab manifest:
+
+```bash
+go run . lab    --file LAB.yaml [--choices V1,R1 | --preset LABEL] [--variant ID] [--json]
+go run . search --file LAB.yaml [--variant ID] [--tradeoffs] [--json]
+go run . robust --file LAB.yaml [--json]
+go run . survey [--root examples]
+go run . bundle [--root examples] [--out labs.json] [--golden golden.json]
+```
+
+The browser lab uses a JavaScript port of the replay engine. `./web/build.sh`
+writes every replay of every choice subset of every lab from Go
+(`bundle --golden`), replays the same in the browser engine, and fails if any
+event status, acting control, terminal state, search finding or robustness
+cell differs.
 
 ## Direction
 
