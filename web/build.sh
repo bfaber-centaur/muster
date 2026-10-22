@@ -10,7 +10,9 @@ cd "$(dirname "$0")/.."
 
 mkdir -p web/dist
 go run . bundle --root examples --out web/dist/labs.json --golden web/dist/golden.json
-node web/parity.mjs web/dist/labs.json web/dist/golden.json | tee web/dist/parity.txt
+# No pipe here: POSIX sh has no pipefail, so "| tee" would hide a parity failure.
+node web/parity.mjs web/dist/labs.json web/dist/golden.json >web/dist/parity.txt
+cat web/dist/parity.txt
 
 node - <<'EOF'
 const fs = require("fs");

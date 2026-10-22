@@ -239,6 +239,32 @@ func ParseManifest(data []byte) (Manifest, error) {
 	if len(m.Choices) == 0 {
 		return Manifest{}, fmt.Errorf("lab must define at least one choice")
 	}
+	adverse := make(map[string]struct{}, len(m.Adverse))
+	for _, o := range m.Adverse {
+		if _, dup := adverse[o.Fact]; dup {
+			return Manifest{}, fmt.Errorf("duplicate adverse outcome %q", o.Fact)
+		}
+		adverse[o.Fact] = struct{}{}
+	}
+	// Variant IDs key the YAML loaded for each variant and name traces next
+	// to "baseline", so they must be unique and must not shadow it.
+	variants := make(map[string]struct{}, len(m.Variants))
+	for _, v := range m.Variants {
+		if strings.TrimSpace(v.ID) == "" || v.ID == "baseline" {
+			return Manifest{}, fmt.Errorf("variant id %q is empty or reserved", v.ID)
+		}
+		if _, dup := variants[v.ID]; dup {
+			return Manifest{}, fmt.Errorf("duplicate variant id %q", v.ID)
+		}
+		variants[v.ID] = struct{}{}
+	}
+	// A preset with no choices key would encode as JSON null, which the
+	// browser engine cannot iterate.
+	for i := range m.Presets {
+		if m.Presets[i].Choices == nil {
+			m.Presets[i].Choices = []string{}
+		}
+	}
 	return m, nil
 }
 

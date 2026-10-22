@@ -212,7 +212,14 @@ func writeRobustMarkdown(w io.Writer, l *lab.Lab, r lab.RobustResult) error {
 		fmt.Fprintf(w, "- %s = %s\n", short[o.Fact], o.Label)
 	}
 
-	if len(r.Findings) > 0 {
+	hasWorse := false
+	for _, fc := range r.Findings {
+		if fc.Finding.Kind == lab.FindingWorse {
+			hasWorse = true
+			break
+		}
+	}
+	if hasWorse {
 		fmt.Fprintln(w, "\n## Do the baseline non-monotone findings survive?")
 		fmt.Fprintln(w)
 		for _, fc := range r.Findings {
@@ -272,29 +279,34 @@ func bundleRun(args []string) error {
 		if err != nil {
 			return err
 		}
-		f, err := os.Create(*golden)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		if err := json.NewEncoder(f).Encode(runs); err != nil {
+		if err := encodeFile(*golden, runs); err != nil {
 			return err
 		}
 	}
-	w := io.Writer(os.Stdout)
+	bundle := lab.NewBundle(labs)
 	if *out != "" {
-		f, err := os.Create(*out)
-		if err != nil {
+		if err := encodeFile(*out, bundle); err != nil {
 			return err
 		}
-		defer f.Close()
-		w = f
-	}
-	if err := json.NewEncoder(w).Encode(lab.NewBundle(labs)); err != nil {
+	} else if err := json.NewEncoder(os.Stdout).Encode(bundle); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "bundled %d labs\n", len(labs))
 	return nil
+}
+
+// encodeFile writes v as JSON to path, reporting a failed Close so a short
+// write is not mistaken for a complete file.
+func encodeFile(path string, v any) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := json.NewEncoder(f).Encode(v); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 func writeJSON(w io.Writer, v any) error {
@@ -393,10 +405,11 @@ func surveyRun(args []string) error {
 	fmt.Println("| --- | --- | --- | ---: | ---: | ---: | --- |")
 
 	for _, l := range labs {
-		base, err := l.Search(l.Baseline)
+		searches, err := l.SearchAll()
 		if err != nil {
 			return err
 		}
+		base := searches[0]
 		worse, traded := 0, 0
 		for _, f := range base.Findings {
 			if f.Kind == lab.FindingWorse {
@@ -406,7 +419,7 @@ func surveyRun(args []string) error {
 			}
 		}
 
-		robust, err := l.Robust()
+		robust, err := l.RobustWith(searches)
 		if err != nil {
 			return err
 		}

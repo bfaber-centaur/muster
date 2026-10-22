@@ -35,18 +35,16 @@ func main() {
 			fmt.Fprintln(os.Stderr, "muster:", err)
 			os.Exit(1)
 		}
-	case "lab", "search", "robust", "bundle", "survey":
-		commands := map[string]func([]string) error{
-			"lab":    labRun,
-			"search": searchRun,
-			"robust": robustRun,
-			"bundle": bundleRun,
-			"survey": surveyRun,
-		}
-		if err := commands[os.Args[1]](os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, "muster:", err)
-			os.Exit(1)
-		}
+	case "lab":
+		runLabCommand(labRun)
+	case "search":
+		runLabCommand(searchRun)
+	case "robust":
+		runLabCommand(robustRun)
+	case "bundle":
+		runLabCommand(bundleRun)
+	case "survey":
+		runLabCommand(surveyRun)
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -234,4 +232,11 @@ examples:
   muster experiment --file experiments/hf-july-2026.yaml
   muster search --file examples/toy-jackpot/lab.yaml
   muster robust --file examples/hf-july-2026/lab.yaml`)
+}
+
+func runLabCommand(run func([]string) error) {
+	if err := run(os.Args[2:]); err != nil {
+		fmt.Fprintln(os.Stderr, "muster:", err)
+		os.Exit(1)
+	}
 }

@@ -474,10 +474,16 @@ const PARITY_REPLAYS = /*__PARITY__*/0;
         .map((c) => {
           const o = ownerOf(c.id);
           if (!o || !S.selected.includes(o.key)) return "";
-          const r = c.reason.replace(/^missing:/, "");
-          return c.disposition === "suppressed"
-            ? `${esc(o.label)} was suppressed (${esc(factLabel(c.reason.replace(/^missing:/, "")))}).`
-            : `${esc(o.label)} could not act: no ${esc(factLabel(r))}.`;
+          // Reasons come from the engine: "missing:F" / "present:F" for an
+          // unmet requirement, "F" / "missing:F" for a suppression.
+          const missing = c.reason.match(/^missing:(.*)$/);
+          const present = c.reason.match(/^present:(.*)$/);
+          if (c.disposition === "suppressed") {
+            const why = missing ? "no " + factLabel(missing[1]) : factLabel(c.reason);
+            return `${esc(o.label)} was suppressed (${esc(why)}).`;
+          }
+          const why = missing ? "no " + factLabel(missing[1]) : present ? factLabel(present[1]) + " already held" : factLabel(c.reason);
+          return `${esc(o.label)} could not act: ${esc(why)}.`;
         })
         .filter(Boolean);
       const uniqueStalled = Array.from(new Set(stalled));
@@ -524,7 +530,7 @@ const PARITY_REPLAYS = /*__PARITY__*/0;
       <p class="muted">Every combination of the ${res.choices} defenses here, replayed against “${esc(lab().trace(S.trace).label)}”. Listed: the smallest cases where adding one more defense makes the outcome strictly worse.</p>
       ${worse.length ? `<div class="findings">${worse.slice(0, 3).map(item).join("")}</div>${worse.length > 3 ? `<details><summary>${worse.length - 3} more minimal case${worse.length > 4 ? "s" : ""}</summary><div class="findings" style="margin-top:10px">${worse.slice(3).map((f, i) => item(f, i + 3)).join("")}</div></details>` : ""}`
         : `<p class="empty">No defense here makes things worse when added. On this trace, ordinary dependency reasoning gives the same answer as replay.</p>`}
-      ${traded.length ? `<details ${worse.length ? "" : "open"}><summary>${traded.length} tradeoff${traded.length > 1 ? "s" : ""}: a defense that removes one harm and opens another</summary><div class="findings" style="margin-top:10px">${traded.slice(0, 6).map(item).join("")}</div></details>` : ""}`;
+      ${traded.length ? `<details ${worse.length ? "" : "open"}><summary>${traded.length} tradeoff${traded.length > 1 ? "s" : ""}: a defense that removes one harm and opens another</summary><div class="findings" style="margin-top:10px">${traded.map(item).join("")}</div></details>` : ""}`;
     $("search").dataset.trace = S.trace;
     S.findings = { worse, tradeoff: traded };
   }
@@ -643,8 +649,6 @@ const PARITY_REPLAYS = /*__PARITY__*/0;
       S.trace = t.dataset.trace;
       S.previous = null;
       replayNow(true);
-      S.previous = null;
-      renderOutcome();
       renderSearch();
     } else if (t.dataset.finding) {
       const [kind, i] = t.dataset.finding.split(":");

@@ -50,14 +50,14 @@ func Golden(labs []*Lab) (GoldenFile, error) {
 	}
 	file.Runs = runs
 	for _, l := range labs {
-		for _, trace := range l.Traces() {
-			result, err := l.Search(trace)
-			if err != nil {
-				return file, err
-			}
-			file.Searches = append(file.Searches, GoldenSearch{Lab: l.Manifest.ID, Trace: trace.ID, Result: result})
+		searches, err := l.SearchAll()
+		if err != nil {
+			return file, err
 		}
-		robust, err := l.Robust()
+		for i, trace := range l.Traces() {
+			file.Searches = append(file.Searches, GoldenSearch{Lab: l.Manifest.ID, Trace: trace.ID, Result: searches[i]})
+		}
+		robust, err := l.RobustWith(searches)
 		if err != nil {
 			return file, err
 		}
