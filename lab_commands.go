@@ -370,3 +370,72 @@ func shortOutcomes(l *lab.Lab) map[string]string {
 	}
 	return short
 }
+
+func surveyRun(args []string) error {
+	flags := flag.NewFlagSet("survey", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	root := flags.String("root", "examples", "directory searched for lab.yaml files")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	labs, err := lab.LoadAll(*root)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("# Survey of every lab")
+	fmt.Println()
+	fmt.Println("Backfires: minimal cases where adding one defense strictly grows the set of")
+	fmt.Println("adverse outcomes, on the recorded trace / on any alternative trace.")
+	fmt.Println("Fragile presets: presets whose outcome changes in at least one alternative trace.")
+	fmt.Println()
+	fmt.Println("| Lab | Domain | Kind | Watchlines | Backfires (recorded / any variant) | Tradeoffs (recorded) | Fragile presets |")
+	fmt.Println("| --- | --- | --- | ---: | ---: | ---: | --- |")
+
+	for _, l := range labs {
+		base, err := l.Search(l.Baseline)
+		if err != nil {
+			return err
+		}
+		worse, traded := 0, 0
+		for _, f := range base.Findings {
+			if f.Kind == lab.FindingWorse {
+				worse++
+			} else {
+				traded++
+			}
+		}
+
+		robust, err := l.Robust()
+		if err != nil {
+			return err
+		}
+		emergent := 0
+		for _, fs := range robust.Emergent {
+			for _, f := range fs {
+				if f.Kind == lab.FindingWorse {
+					emergent++
+				}
+			}
+		}
+		fragile, presets := 0, 0
+		for _, row := range robust.Rows[1:] {
+			presets++
+			for _, c := range row.Cells {
+				if c.Change != "same" {
+					fragile++
+					break
+				}
+			}
+		}
+
+		fragileText := "—"
+		if len(l.Variants) > 0 {
+			fragileText = fmt.Sprintf("%d of %d", fragile, presets)
+		}
+		fmt.Printf("| %s | %s | %s | %d | %d / %d | %d | %s |\n",
+			l.Manifest.Title, l.Manifest.Domain, l.Manifest.Kind, base.Watchline,
+			worse, worse+emergent, traded, fragileText)
+	}
+	return nil
+}

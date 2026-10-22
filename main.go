@@ -35,12 +35,13 @@ func main() {
 			fmt.Fprintln(os.Stderr, "muster:", err)
 			os.Exit(1)
 		}
-	case "lab", "search", "robust", "bundle":
+	case "lab", "search", "robust", "bundle", "survey":
 		commands := map[string]func([]string) error{
 			"lab":    labRun,
 			"search": searchRun,
 			"robust": robustRun,
 			"bundle": bundleRun,
+			"survey": surveyRun,
 		}
 		if err := commands[os.Args[1]](os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "muster:", err)
@@ -224,6 +225,7 @@ func usage() {
   muster lab --file LAB.yaml [--choices V1,R1 | --preset LABEL] [--variant ID] [--json]
   muster search --file LAB.yaml [--variant ID] [--tradeoffs] [--json]
   muster robust --file LAB.yaml [--json]
+  muster survey [--root examples]
   muster bundle [--root examples] [--out labs.json] [--golden golden.json]
 
 examples:

@@ -1,0 +1,198 @@
+# Control pool for the CircleCI January 2023 lab.
+#
+# Marked AS DEPLOYED where the incident report says the defense existed and
+# was used; everything else is a COUNTERFACTUAL. Several counterfactuals come
+# from CircleCI's own list of planned improvements in the incident report
+# ("expanded alerting", "reducing session trust", easier OIDC adoption).
+#
+# Response chain: every Vedette signal that reaches CircleCI goes through the
+# same staged response -- review (is this real?) -> critical (compromise
+# confirmed) -> escalate (incident declared, customers will be told) ->
+# respond. The chain is instantaneous in the model; in reality the Dec 29
+# customer report led to access shutdown on Jan 4 [IR].
+
+id: circleci-2023-controls
+
+controls:
+  # ---------------------------------------------------------------- Vedettes
+
+  # AS DEPLOYED. [IR] Dec 29: a customer alerted CircleCI to suspicious GitHub
+  # OAuth activity. An external Vedette: the signal came from outside.
+  - id: customer-spots-github-activity
+    role: vedette
+    events: [github-oauth-misuse]
+    substrate: customer-github-audit-log
+    action: observe
+    effects:
+      add: [alert:customer-github-report]
+
+  # PRESS-REPORTED [TS]. A customer's canary (decoy) AWS key fires when the
+  # attacker tries it. Whether such a report reached CircleCI and shaped its
+  # response is not stated in [IR]; the lab treats "it was reported" as the
+  # choice.
+  - id: customer-canary-trips
+    role: vedette
+    events: [decoy-key-tried]
+    substrate: customer-canary-tokens
+    action: observe
+    effects:
+      add: [alert:canary-tripped]
+
+  # COUNTERFACTUAL. Alert when a session from an unfamiliar network mints
+  # production tokens. [IR] lists VPN/hosting providers used by the actor and
+  # promises "expanded alerting". A location/network signal cannot see a
+  # session that is driven from the employee's own laptop, so it is
+  # suppressed in that branch (variant on-device-session).
+  - id: unusual-session-alert
+    role: vedette
+    events: [production-token-minting]
+    substrate: identity-and-production-telemetry
+    action: observe
+    suppressed_by:
+      present: [session:on-usual-device]
+    effects:
+      add: [alert:unusual-session]
+
+  # COUNTERFACTUAL. Behavioural endpoint detection notices the cookie theft.
+  # [IR]: the antivirus that WAS deployed did not detect the malware.
+  - id: endpoint-detects-stealer
+    role: vedette
+    events: [session-cookie-theft]
+    substrate: endpoint-detection
+    action: observe
+    effects:
+      add: [alert:endpoint-stealer]
+
+  # ---------------------------------------------------------------- Pickets
+
+  # AS DEPLOYED. 2FA is checked when someone signs in. The stolen session had
+  # already passed 2FA [IR], so the attacker never signs in and the check is
+  # never asked. It sits on the sign-in transition (password-sign-in), not on
+  # the session-reuse transition the attacker took.
+  - id: twofa-at-sign-in
+    role: picket
+    events: [password-sign-in]
+    substrate: sso-sign-in
+    action: block
+
+  # COUNTERFACTUAL. Sessions bound to the enrolled device, so a copied cookie
+  # is useless elsewhere. [IR] plans "reducing session trust". It cannot stop
+  # a session driven from the infected device itself, so it is listed only on
+  # the remote-replay transition.
+  - id: device-bound-session
+    role: picket
+    events: [session-replay]
+    substrate: sso-session-binding
+    action: block
+
+  # COUNTERFACTUAL. Short-lived, per-job credentials (OIDC) instead of stored
+  # long-lived cloud keys; a stolen copy has expired before it is used. [SA]
+  # recommends OIDC; [IR] plans to make it easier to adopt.
+  - id: short-lived-credentials
+    role: picket
+    events: [third-party-access, cloud-key-used]
+    substrate: customer-credential-design
+    action: block
+
+  # ---------------------------------------------------- staged human response
+
+  - id: triage-endpoint-alert
+    events: [session-cookie-theft]
+    requires:
+      present: [alert:endpoint-stealer]
+    substrate: circleci-security-team
+    action: review
+    effects:
+      add: [reviewed:possible-compromise]
+
+  - id: triage-unusual-session
+    events: [production-token-minting]
+    requires:
+      present: [alert:unusual-session]
+    substrate: circleci-security-team
+    action: review
+    effects:
+      add: [reviewed:possible-compromise]
+
+  # [IR] Dec 29 report -> review with GitHub.
+  - id: triage-customer-report
+    events: [github-oauth-misuse]
+    requires:
+      present: [alert:customer-github-report]
+    substrate: circleci-security-team
+    action: review
+    effects:
+      add: [reviewed:possible-compromise]
+
+  - id: triage-canary-report
+    events: [decoy-key-tried]
+    requires:
+      present: [alert:canary-tripped]
+    substrate: circleci-security-team
+    action: review
+    effects:
+      add: [reviewed:possible-compromise]
+
+  # [IR] Dec 30: token confirmed compromised; Jan 4: scope and entry found.
+  - id: confirm-compromise
+    events: [session-cookie-theft, production-token-minting, github-oauth-misuse, decoy-key-tried]
+    requires:
+      present: [reviewed:possible-compromise]
+    action: critical
+    effects:
+      add: [critical:confirmed-compromise]
+
+  # [IR][SA] Jan 4-5: incident declared, customers notified by email, blog,
+  # social media and forum.
+  - id: declare-incident
+    events: [session-cookie-theft, production-token-minting, github-oauth-misuse, decoy-key-tried]
+    requires:
+      present: [critical:confirmed-compromise]
+    action: escalate
+    effects:
+      add: [escalated:incident]
+
+  # ---------------------------------------------------------------- Reserves
+
+  # AS DEPLOYED. [IR] Jan 4: compromised employee's access shut down,
+  # production access removed for nearly all employees, exposed production
+  # hosts rotated. Dec 31-Jan 7: GitHub OAuth tokens rotated ("the rotation
+  # process took time"); Jan 5-6: project and personal API tokens revoked;
+  # Jan 6: Bitbucket tokens rotated with Atlassian.
+  - id: provider-cuts-access-and-rotates
+    role: reserve
+    events: [session-cookie-theft, production-token-minting, github-oauth-misuse, decoy-key-tried]
+    requires:
+      present: [escalated:incident]
+    action: respond
+    effects:
+      remove:
+        - attacker:laptop-malware
+        - attacker:sso-session
+        - attacker:employee-identity
+        - attacker:production-access
+        - attacker:provider-tokens
+
+  # AS DEPLOYED, with lag. [SA] customers told to rotate every secret at the
+  # source. Only customers can do this; it happens over days after notice.
+  - id: customers-rotate-at-source
+    role: reserve
+    events: [customer-rotation-window]
+    requires:
+      present: [escalated:incident]
+    action: respond
+    effects:
+      remove: [attacker:customer-secrets]
+
+  # LATE IN THE RECORD. [SA] 2023-03-13: the secret-finding tool was updated
+  # to find secrets "stored in CircleCI but may not be visible in the UI"
+  # (renamed or deleted projects). As a choice, this asks: what if that sweep
+  # had been available when customers were rotating?
+  - id: sweep-forgotten-secrets
+    role: reserve
+    events: [customer-rotation-window]
+    requires:
+      present: [escalated:incident]
+    action: respond
+    effects:
+      remove: [attacker:forgotten-secrets]
