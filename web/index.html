@@ -232,6 +232,23 @@ footer .roles span { display: inline-flex; align-items: center; gap: 6px; }
   .step { animation: rise 260ms ease both; animation-delay: calc(var(--i, 0) * 28ms); }
   @keyframes rise { from { opacity: 0.35; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 }
+/* Phone: the replay sits far below the choices, so keep its verdict in view. */
+.mbar { display: none; }
+@media (max-width: 920px) {
+  .mbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--ink); color: var(--panel);
+    padding-top: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .mbar .v { font-family: var(--display); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; font-size: var(--step-1); line-height: 1.1; }
+  .mbar .n { font-size: var(--step--1); opacity: 0.8; }
+  .mbar button { border: 1px solid var(--panel); background: transparent; color: var(--panel); border-radius: var(--radius); padding: 5px 10px; font-size: var(--step--1); font-weight: 600; flex: none; cursor: pointer; }
+  footer { padding-bottom: 96px; }
+}
 </style>
 
 <div class="wrap">
@@ -256,6 +273,11 @@ footer .roles span { display: inline-flex; align-items: center; gap: 6px; }
   <section class="lower" style="grid-template-columns: minmax(0,1fr);">
     <div class="panel" id="about"></div>
   </section>
+  <section class="lower" style="grid-template-columns: minmax(0,1fr);">
+    <div class="panel" id="survey">
+      <div class="panel-head"><h2>Across all scenarios</h2><span class="eyebrow">computing…</span></div>
+    </div>
+  </section>
   <footer>
     <div class="roles">
       <span class="r-vedette"><svg class="sym" width="16" height="16"><use href="#sym-vedette"/></svg><b>Vedette</b> observes</span>
@@ -265,6 +287,8 @@ footer .roles span { display: inline-flex; align-items: center; gap: 6px; }
     <p>Muster is a small incident-replay harness. Every replay on this page runs in your browser, on an engine checked against the Go engine on <span id="parity-count">every</span> replays, which cover every combination of defenses in every scenario. Scenarios are compressed abstractions, not forensic reconstructions. Source and scenario files: <a href="https://github.com/bfaber-centaur/muster" rel="noopener">github.com/bfaber-centaur/muster</a>.</p>
   </footer>
 </div>
+
+<div class="mbar" id="mbar" aria-live="polite"></div>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -469,6 +493,7 @@ const PARITY_REPLAYS = /*__PARITY__*/0;
       </li>`;
     }).join("");
 
+    $("mbar").innerHTML = `<div><div class="v">${esc(title)}</div><div class="n">${run.harm.length} of ${m().adverse.length} harms reached</div></div><button type="button" id="mbar-jump" data-jump="outcome">See replay</button>`;
     $("outcome").innerHTML = `
       <div class="verdict ${run.harm.length ? "bad" : "good"}">
         <span class="eyebrow">Replay${S.selected.length ? " with " + S.selected.map(esc).join(" + ") : " with no added defense"}</span>
@@ -544,6 +569,38 @@ const PARITY_REPLAYS = /*__PARITY__*/0;
       ${(mm.sources || []).length ? `<div class="sources">${mm.sources.map((s) => s.url ? `<a href="${esc(s.url)}" rel="noopener" target="_blank">${esc(s.title)}</a>` : `<span>${esc(s.title)}</span>`).join("")}</div>` : ""}`;
   }
 
+  // ---- Survey ------------------------------------------------------------------
+  function renderSurvey() {
+    const rows = labs.map((l) => {
+      const base = memo(`s|${l.manifest.id}|baseline`, () => l.search("baseline"));
+      const worse = base.findings.filter((f) => f.kind === "worse").length;
+      const traded = base.findings.length - worse;
+      let emergent = 0, fragile = 0;
+      const presets = (l.manifest.presets || []).length;
+      if (l.traces.length > 1) {
+        const r = memo(`r|${l.manifest.id}`, () => l.robust());
+        for (const fs of Object.values(r.emergent)) emergent += fs.filter((f) => f.kind === "worse").length;
+        fragile = r.rows.slice(1).filter((row) => row.cells.some((c) => c.change !== "same")).length;
+      }
+      return { l, watchlines: base.watchlines, worse, any: worse + emergent, traded, fragile, presets, variants: l.traces.length - 1 };
+    });
+    const num = (n, cls) => `<span class="cell ${n ? cls : ""}">${n}</span>`;
+    $("survey").innerHTML = `
+      <div class="panel-head"><h2>Across all scenarios</h2><span class="eyebrow">${rows.reduce((a, r) => a + r.watchlines * (r.variants + 1), 0).toLocaleString("en-US")} Watchline replays</span></div>
+      <p class="muted">Backfires are the smallest cases where adding one defense strictly grows the set of harms. A preset is fragile when its outcome changes in at least one alternative version of events.</p>
+      <div class="table-scroll"><table class="matrix">
+        <thead><tr><th scope="col">Scenario</th><th scope="col">Field</th><th scope="col">Kind</th><th scope="col">Watchlines</th><th scope="col">Backfires<span class="k">recorded / any version</span></th><th scope="col">Tradeoffs<span class="k">recorded</span></th><th scope="col">Fragile presets</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr>
+          <th scope="row"><button type="button" class="btn ghost" style="border:0;padding:0;font-weight:600;text-align:left" id="survey-${esc(r.l.manifest.id)}" data-lab="${esc(r.l.manifest.id)}">${esc(r.l.manifest.title)}</button></th>
+          <td>${esc(r.l.manifest.domain)}</td><td>${esc(KIND[r.l.manifest.kind] || r.l.manifest.kind)}</td>
+          <td class="mono">${r.watchlines}</td>
+          <td>${num(r.worse, "worse")} / ${num(r.any, "worse")}</td>
+          <td>${num(r.traded, "")}</td>
+          <td class="mono">${r.variants ? `${r.fragile} of ${r.presets}` : "—"}</td>
+        </tr>`).join("")}</tbody>
+      </table></div>`;
+  }
+
   // ---- Wiring ------------------------------------------------------------------
   function selectLab(id, fromHash) {
     const l = byId.get(id) || labs[0];
@@ -568,7 +625,11 @@ const PARITY_REPLAYS = /*__PARITY__*/0;
   document.addEventListener("click", (ev) => {
     const t = ev.target.closest("button");
     if (!t) return;
-    if (t.dataset.lab) selectLab(t.dataset.lab);
+    if (t.dataset.lab) {
+      selectLab(t.dataset.lab);
+      if (t.id.startsWith("survey-")) $("rail").scrollIntoView({ block: "start" });
+    }
+    else if (t.dataset.jump) $(t.dataset.jump).scrollIntoView({ block: "start" });
     else if (t.dataset.choice) {
       const k = t.dataset.choice;
       S.selected = S.selected.includes(k) ? S.selected.filter((x) => x !== k) : S.selected.concat([k]);
@@ -599,5 +660,6 @@ const PARITY_REPLAYS = /*__PARITY__*/0;
   if (PARITY_REPLAYS) $("parity-count").textContent = PARITY_REPLAYS.toLocaleString("en-US");
   const hash = (location.hash || "").slice(1);
   selectLab(byId.has(hash) ? hash : labs[0].manifest.id, byId.has(hash));
+  setTimeout(renderSurvey, 50);
 })();
 </script>
