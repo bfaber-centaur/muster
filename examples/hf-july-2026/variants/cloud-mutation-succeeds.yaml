@@ -1,0 +1,116 @@
+# Failed-attempt variant. Hugging Face reports that with the replayed cloud
+# role "every mutating call was denied by the role's policy" and 84 operations
+# against the credential store and cluster keys were denied. Here the role is
+# over-permissioned and those calls succeed.
+#
+# Public-record abstraction of the July 2026 Hugging Face intrusion.
+#
+# This is deliberately NOT a one-to-one reconstruction of the ~17,600
+# recovered actions. It compresses the published campaign into semantic
+# transitions needed to exercise defensive counterfactuals.
+#
+# Primary source:
+# https://huggingface.co/blog/agent-intrusion-technical-timeline
+
+id: hf-july-2026-cloud-mutation-succeeds
+
+initial_facts:
+  - attacker:external-launchpad
+
+events:
+  - id: dataset-local-file-read
+    requires:
+      present:
+        - attacker:external-launchpad
+    effects:
+      add:
+        - attacker:worker-secrets
+        - attacker:worker-source
+
+  - id: dataset-template-rce
+    requires:
+      present:
+        - attacker:external-launchpad
+    effects:
+      add:
+        - attacker:worker-access
+
+  - id: k8s-api-discovery
+    requires:
+      present:
+        - attacker:worker-access
+    effects:
+      add:
+        - attacker:cluster-knowledge
+
+  - id: cloud-metadata-role-replay
+    requires:
+      present:
+        - attacker:worker-access
+    effects:
+      add:
+        - attacker:cloud-role
+
+
+  # Counterfactual: the cloud role's policy permits mutation.
+  - id: cloud-credential-store-access
+    requires:
+      present:
+        - attacker:cloud-role
+    effects:
+      add:
+        - attacker:cloud-credential-store
+
+  - id: privileged-hostpath-pod
+    requires:
+      present:
+        - attacker:worker-access
+        - attacker:cluster-knowledge
+    effects:
+      add:
+        - attacker:privileged-hostpath
+
+  - id: node-root
+    requires:
+      present:
+        - attacker:privileged-hostpath
+    effects:
+      add:
+        - attacker:node-root
+
+  - id: cluster-secret-harvest
+    requires:
+      present:
+        - attacker:node-root
+    effects:
+      add:
+        - attacker:cluster-secrets
+
+  - id: mesh-enrollment
+    requires:
+      present:
+        - attacker:cluster-secrets
+    effects:
+      add:
+        - attacker:internal-network-access
+
+  # The public timeline describes this as a separate path from the mesh pivot:
+  # the compromised worker could directly resolve and reach the internal
+  # service-connector API.
+  - id: service-connector-discovery
+    requires:
+      present:
+        - attacker:worker-access
+    effects:
+      add:
+        - attacker:connector-catalog
+
+
+  - id: shared-connector-credential-replay
+    requires:
+      present:
+        - attacker:cluster-secrets
+        - attacker:connector-catalog
+    effects:
+      add:
+        - attacker:cluster-admin

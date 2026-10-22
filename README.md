@@ -170,18 +170,25 @@ Once the toy model feels intuitive, switch to the **HF-inspired public-record ab
 
 The main real-world example is a compressed abstraction of the **July 2026 Hugging Face intrusion**, based on Hugging Face's published technical timeline.
 
-It is **not a forensic reconstruction**. It preserves enough structure to compare defensive counterfactuals across two independent attack paths.
+It is **not a forensic reconstruction**. It preserves enough structure to compare defensive counterfactuals across several attack branches. Those branches share an early foothold, and the cluster-admin branch also depends on the node-root secret read.
 
-| Watchline                            | Node root | Internal network | Cluster admin |
-| ------------------------------------ | --------: | ---------------: | ------------: |
-| observed signal, no page             |       yes |              yes |           yes |
-| privileged/hostPath admission policy |        no |               no |           yes |
-| cluster-scoped connector identity    |       yes |              yes |            no |
-| critical page + worker isolation     |        no |               no |            no |
+| Watchline                            | Node root | Internal network | Cluster admin | Worker credentials |
+| ------------------------------------ | --------: | ---------------: | ------------: | -----------------: |
+| observed signal, no page             |       yes |              yes |           yes |                yes |
+| privileged/hostPath admission policy |        no |               no |            no |                yes |
+| cluster-scoped connector identity    |       yes |              yes |            no |                yes |
+| critical page + worker isolation     |        no |               no |            no |                yes |
+| dataset local-file-read hardening    |       yes |              yes |           yes |                 no |
 
 Different controls buy different pieces of the incident.
 
-Blocking privileged workloads cuts one branch but leaves the connector path open. Scoping the connector credential cuts that branch but leaves node compromise possible. Early escalation and worker isolation cuts both downstream paths.
+Blocking privileged workloads removes node root and everything downstream of
+it, including cluster-admin, because the connector credential came from the
+node-root secret read. Scoping the connector credential removes only
+cluster-admin. Early escalation and worker isolation cuts every downstream
+branch. None of these touch the credentials exposed by the dataset file-read
+before any alert fired; only hardening that read does, and it leaves the rest
+of the intrusion intact.
 
 See [`examples/hf-july-2026/`](examples/hf-july-2026/) for provenance and modeling caveats.
 

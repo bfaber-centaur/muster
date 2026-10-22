@@ -1,0 +1,108 @@
+# Alternative branch. In the published timeline the access-broker credential
+# came from the node-root secret read ("That single read yielded both the
+# mesh-VPN auth key ... and the access-broker credential"). Earlier versions of
+# this README described the connector path as independent of node root. This
+# variant models that reading: the shared connector credential is reachable from
+# the worker's own environment, so cluster-admin no longer depends on node root.
+#
+# Public-record abstraction of the July 2026 Hugging Face intrusion.
+#
+# This is deliberately NOT a one-to-one reconstruction of the ~17,600
+# recovered actions. It compresses the published campaign into semantic
+# transitions needed to exercise defensive counterfactuals.
+#
+# Primary source:
+# https://huggingface.co/blog/agent-intrusion-technical-timeline
+
+id: hf-july-2026-connector-cred-on-worker
+
+initial_facts:
+  - attacker:external-launchpad
+
+events:
+  - id: dataset-local-file-read
+    requires:
+      present:
+        - attacker:external-launchpad
+    effects:
+      add:
+        - attacker:worker-secrets
+        - attacker:worker-source
+
+  - id: dataset-template-rce
+    requires:
+      present:
+        - attacker:external-launchpad
+    effects:
+      add:
+        - attacker:worker-access
+
+  - id: k8s-api-discovery
+    requires:
+      present:
+        - attacker:worker-access
+    effects:
+      add:
+        - attacker:cluster-knowledge
+
+  - id: cloud-metadata-role-replay
+    requires:
+      present:
+        - attacker:worker-access
+    effects:
+      add:
+        - attacker:cloud-role
+
+  - id: privileged-hostpath-pod
+    requires:
+      present:
+        - attacker:worker-access
+        - attacker:cluster-knowledge
+    effects:
+      add:
+        - attacker:privileged-hostpath
+
+  - id: node-root
+    requires:
+      present:
+        - attacker:privileged-hostpath
+    effects:
+      add:
+        - attacker:node-root
+
+  - id: cluster-secret-harvest
+    requires:
+      present:
+        - attacker:node-root
+    effects:
+      add:
+        - attacker:cluster-secrets
+
+  - id: mesh-enrollment
+    requires:
+      present:
+        - attacker:cluster-secrets
+    effects:
+      add:
+        - attacker:internal-network-access
+
+  # The public timeline describes this as a separate path from the mesh pivot:
+  # the compromised worker could directly resolve and reach the internal
+  # service-connector API.
+  - id: service-connector-discovery
+    requires:
+      present:
+        - attacker:worker-access
+    effects:
+      add:
+        - attacker:connector-catalog
+
+
+  - id: shared-connector-credential-replay
+    requires:
+      present:
+        - attacker:worker-secrets
+        - attacker:connector-catalog
+    effects:
+      add:
+        - attacker:cluster-admin

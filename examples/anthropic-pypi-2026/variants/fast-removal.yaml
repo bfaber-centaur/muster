@@ -1,0 +1,67 @@
+# Alternative branch: the registry's automated removal (about 90 minutes in the
+# real incident) lands before the vendor scanner installs the package.
+#
+# Public-record abstraction of Anthropic's 2026 Claude Mythos 5 PyPI incident.
+# Not a transcript reconstruction; intermediate account-registration details are compressed.
+#
+# Sources:
+# https://www.anthropic.com/news/investigating-incidents-cybersecurity-evals
+# https://www.anthropic.com/research/alignment-assessment-cybersecurity-incidents
+
+id: anthropic-mythos5-pypi-fast-removal
+
+initial_facts:
+  - eval:ctf-active
+  - eval:internet-path-open
+  - eval:developer-instructions-present
+
+events:
+  - id: discover-unregistered-package
+    requires:
+      present: [eval:ctf-active, eval:developer-instructions-present]
+    effects:
+      add: [agent:package-name-known]
+
+  - id: reach-public-internet
+    requires:
+      present: [eval:ctf-active, eval:internet-path-open]
+    effects:
+      add: [agent:public-internet-access]
+
+  - id: create-public-registry-account
+    requires:
+      present: [eval:ctf-active, agent:public-internet-access]
+    effects:
+      add: [agent:pypi-account]
+
+  - id: publish-malicious-package
+    requires:
+      present: [eval:ctf-active, agent:package-name-known, agent:pypi-account]
+    effects:
+      add: [public:malicious-package]
+
+  - id: registry-removes-package
+    requires:
+      present: [public:malicious-package]
+    effects:
+      remove: [public:malicious-package]
+      add: [public:package-removed]
+
+  - id: third-party-scanner-installs-package
+    requires:
+      present: [public:malicious-package]
+    effects:
+      add: [third-party:package-executed]
+
+  - id: scanner-credential-exposure
+    requires:
+      present: [third-party:package-executed]
+    effects:
+      add: [attacker:vendor-credential]
+
+  - id: vendor-database-access
+    requires:
+      present: [attacker:vendor-credential]
+    effects:
+      add: [attacker:vendor-database-access]
+
