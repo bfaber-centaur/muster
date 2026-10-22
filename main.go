@@ -35,6 +35,17 @@ func main() {
 			fmt.Fprintln(os.Stderr, "muster:", err)
 			os.Exit(1)
 		}
+	case "lab", "search", "robust", "bundle":
+		commands := map[string]func([]string) error{
+			"lab":    labRun,
+			"search": searchRun,
+			"robust": robustRun,
+			"bundle": bundleRun,
+		}
+		if err := commands[os.Args[1]](os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "muster:", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -210,9 +221,15 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   muster replay --scenario SCENARIO.yaml --controls CONTROLS.yaml [--only-controls ID,ID,...] [--json]
   muster experiment --file EXPERIMENT.yaml [--format markdown|json|csv]
+  muster lab --file LAB.yaml [--choices V1,R1 | --preset LABEL] [--variant ID] [--json]
+  muster search --file LAB.yaml [--variant ID] [--tradeoffs] [--json]
+  muster robust --file LAB.yaml [--json]
+  muster bundle [--root examples] [--out web/labs.json]
 
 examples:
   muster replay --scenario examples/gate2-between.yaml --controls examples/gate2-broad-correlated.yaml
   muster replay --scenario examples/notebook/toy-jackpot.yaml --controls examples/notebook/toy-controls.yaml --only-controls worker-credential-theft,worker-k8s-discovery,revoke-cluster-credential --json
-  muster experiment --file experiments/hf-july-2026.yaml`)
+  muster experiment --file experiments/hf-july-2026.yaml
+  muster search --file examples/toy-jackpot/lab.yaml
+  muster robust --file examples/hf-july-2026/lab.yaml`)
 }

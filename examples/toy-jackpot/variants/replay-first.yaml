@@ -1,0 +1,45 @@
+# Alternative branch: the stolen credential is replayed immediately, before the
+# worker-side discovery that feeds the revocation path.
+id: toy-jackpot-replay-first
+
+initial_facts:
+  - dataset:malicious-on-worker
+
+events:
+  - id: worker-code-execution
+    requires:
+      present: [dataset:malicious-on-worker]
+    effects:
+      add: [attacker:worker-access]
+
+  - id: cluster-credential-theft
+    requires:
+      present: [attacker:worker-access]
+    effects:
+      add: [attacker:cluster-credential]
+
+  - id: stolen-credential-replay
+    requires:
+      present: [attacker:cluster-credential]
+    effects:
+      add: [attacker:cluster-session]
+
+  - id: kubernetes-api-discovery-from-worker
+    requires:
+      present:
+        - attacker:worker-access
+        - attacker:cluster-credential
+    effects:
+      add: [attacker:cluster-knowledge]
+
+  - id: privileged-workload-creation
+    requires:
+      present: [attacker:cluster-session]
+    effects:
+      add: [workload:privileged-hostpath]
+
+  - id: node-access
+    requires:
+      present: [workload:privileged-hostpath]
+    effects:
+      add: [attacker:node-access]

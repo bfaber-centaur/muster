@@ -1,0 +1,102 @@
+id: toy-jackpot
+title: Toy incident (JACKPOT)
+domain: cyber
+kind: synthetic
+order: 10
+summary: >
+  A six-step synthetic intrusion. An attacker runs code on a worker, steals a
+  cluster credential, and tries to turn it into node access. Keep the attacker
+  off the node with at most four defenses.
+note: >
+  Deliberately constructed. It contains a non-monotone interaction: an early,
+  locally successful isolation removes the evidence a later revocation needs.
+scenario: ../notebook/toy-jackpot.yaml
+controls: ../notebook/toy-controls.yaml
+budget: 4
+
+adverse:
+  - fact: attacker:node-access
+    label: attacker reached the node
+  - fact: attacker:cluster-credential
+    label: stolen cluster credential still live
+
+events:
+  worker-code-execution: Gain code execution on worker
+  cluster-credential-theft: Steal cluster credential
+  kubernetes-api-discovery-from-worker: Discover Kubernetes API from worker
+  stolen-credential-replay: Replay stolen credential
+  privileged-workload-creation: Create privileged workload
+  node-access: Reach the node
+  unrelated-service-enumeration: Enumerate an unrelated service
+
+facts:
+  dataset:malicious-on-worker: malicious dataset on worker
+  attacker:node-access: attacker reached the node
+  attacker:worker-access: worker access
+  attacker:cluster-credential: stolen cluster credential
+  attacker:cluster-knowledge: cluster knowledge
+  attacker:cluster-session: cluster session
+  attacker:unrelated-service-knowledge: unrelated service knowledge
+  workload:privileged-hostpath: privileged workload
+  alert:credential-theft: credential-theft alert
+  alert:k8s-discovery: Kubernetes-discovery alert
+  reviewed:cluster-integrity: cluster integrity reviewed
+  critical:cluster-integrity: cluster compromise marked critical
+  escalated:cluster-integrity: cluster response escalated
+  escalated:worker-containment: worker containment escalated
+
+choices:
+  - key: V1
+    role: vedette
+    label: Detect credential theft
+    controls: [worker-credential-theft]
+    help: Notice the credential theft and keep an alert for later defenders.
+  - key: V2
+    role: vedette
+    label: Detect Kubernetes discovery
+    controls: [worker-k8s-discovery]
+    help: Notice later cluster discovery. This can feed the credential-revocation response.
+  - key: P1
+    role: picket
+    label: Stop credential replay
+    controls: [block-credential-replay]
+    help: Prevent the stolen credential from creating a cluster session.
+  - key: P2
+    role: picket
+    label: Block privileged workload
+    controls: [block-privileged-workload]
+    help: Reject the privileged workload before it can lead to node access.
+  - key: R1
+    role: reserve
+    label: Revoke stolen credential
+    controls: [review-k8s-discovery, assess-cluster-integrity, escalate-cluster-integrity, revoke-cluster-credential]
+    help: Use the later discovery signal to review, escalate, and revoke the stolen credential.
+  - key: R2
+    role: reserve
+    label: Isolate worker early
+    controls: [escalate-worker-containment, isolate-worker]
+    help: Contain the worker right after credential theft. Useful, but perhaps not harmless.
+
+presets:
+  - label: Strong but brittle
+    choices: [V1, V2, R1]
+  - label: Diverse prevention
+    choices: [V1, P1, P2]
+  - label: Want something counterintuitive?
+    choices: [V1, V2, R1, R2]
+    note: Adds early isolation to a Watchline that was already containing the attack.
+
+variants:
+  - id: side-branch
+    label: Unrelated side branch
+    kind: perturbation
+    scenario: ../../experiments/sensitivity/toy-jackpot-side-branch.yaml
+    note: Preregistered non-causal perturbation. The attacker also enumerates an unrelated service.
+  - id: replay-first
+    label: Credential replayed before discovery
+    kind: alternative-branch
+    scenario: variants/replay-first.yaml
+    note: >
+      The attacker uses the stolen credential straight away, before any
+      Kubernetes discovery from the worker. Revocation now arrives too late
+      for the first replay.
