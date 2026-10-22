@@ -94,6 +94,9 @@ type Lab struct {
 	Variants []Trace
 }
 
+// MaxAdverse bounds adverse outcomes per lab.
+const MaxAdverse = 30
+
 // Kinds of lab.
 const (
 	KindPublicRecord = "public-record"
@@ -225,6 +228,13 @@ func ParseManifest(data []byte) (Manifest, error) {
 	}
 	if len(m.Adverse) == 0 {
 		return Manifest{}, fmt.Errorf("lab must define at least one adverse outcome")
+	}
+	// The browser engine tracks adverse outcomes in 32-bit integers.
+	if len(m.Adverse) > MaxAdverse {
+		return Manifest{}, fmt.Errorf("lab defines %d adverse outcomes; at most %d are supported", len(m.Adverse), MaxAdverse)
+	}
+	if len(m.Choices) > MaxSearchChoices {
+		return Manifest{}, fmt.Errorf("lab defines %d choices; at most %d are supported", len(m.Choices), MaxSearchChoices)
 	}
 	if len(m.Choices) == 0 {
 		return Manifest{}, fmt.Errorf("lab must define at least one choice")

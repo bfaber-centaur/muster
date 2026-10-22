@@ -49,9 +49,6 @@ func (l *Lab) table(trace Trace) (harmTable, error) {
 	if len(keys) > MaxSearchChoices {
 		return harmTable{}, fmt.Errorf("%d choices exceeds exhaustive search limit of %d", len(keys), MaxSearchChoices)
 	}
-	if len(l.Manifest.Adverse) > 64 {
-		return harmTable{}, fmt.Errorf("more than 64 adverse outcomes")
-	}
 
 	n := len(keys)
 	t := harmTable{
