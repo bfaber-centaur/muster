@@ -593,3 +593,39 @@ func TestReplayRefreshesSuppressedDispositionAfterEarlierPhaseAddsRequirement(t 
 		)
 	}
 }
+
+func TestInactivePicketDoesNotBlock(t *testing.T) {
+	scenario := engine.Scenario{
+		ID:           "inactive-picket",
+		InitialFacts: []string{"seed", "picket:down"},
+		Events: []engine.Event{{
+			ID:            "step",
+			Preconditions: []engine.Condition{{Fact: "seed", Op: engine.ConditionPresent}},
+			Effects:       []engine.Effect{{Fact: "reached", Op: engine.EffectAdd}},
+		}},
+	}
+
+	suppressed := engine.EventControl{
+		ID: "suppressed-picket", Role: engine.Picket, EventIDs: []string{"step"}, Action: engine.ActionBlock,
+		SuppressedBy: []engine.Condition{{Fact: "picket:down", Op: engine.ConditionPresent}},
+	}
+	waiting := engine.EventControl{
+		ID: "waiting-picket", Role: engine.Picket, EventIDs: []string{"step"}, Action: engine.ActionBlock,
+		Requires: []engine.Condition{{Fact: "alert:never", Op: engine.ConditionPresent}},
+	}
+	blind := engine.EventControl{
+		ID: "waiting-vedette", Role: engine.Vedette, EventIDs: []string{"step"}, Action: engine.ActionObserve,
+		Requires: []engine.Condition{{Fact: "sensor:never", Op: engine.ConditionPresent}},
+	}
+
+	for _, control := range []engine.EventControl{suppressed, waiting, blind} {
+		result := engine.Replay(scenario, control)
+		entry := result.Trace[0]
+		if entry.Status != engine.EventApplied {
+			t.Errorf("%s: status = %s, want applied", control.ID, entry.Status)
+		}
+		if len(entry.BlockedBy) != 0 || len(entry.ObservedBy) != 0 {
+			t.Errorf("%s: inactive control credited: blocked=%v observed=%v", control.ID, entry.BlockedBy, entry.ObservedBy)
+		}
+	}
+}
