@@ -1,0 +1,180 @@
+# Control pool for the Macondo / Deepwater Horizon lab.
+#
+# Each human-facing choice in lab.yaml expands to one or more of these engine
+# controls. Some describe what actually happened on April 20, 2010 (used by
+# the "As recorded" preset); the rest are counterfactual. Sources as in
+# scenario.yaml: [BP], [NC], [CC], [CSB].
+id: deepwater-horizon-2010-controls
+
+controls:
+  # --- Negative-pressure test: a Vedette chain ---------------------------
+  # Record: the readings were seen and discussed at length on the rig floor
+  # (observe + review happened). The chain failed at the "critical" stage:
+  # the 1,400 psi drill-pipe reading was explained away (the "bladder effect",
+  # NC ch. 4) and the kill-line result accepted [BP KF3, NC, CC 4.6].
+  - id: npt-readings
+    role: vedette
+    events: [negative-test-shows-flow]
+    substrate: drill-pipe-and-kill-line-gauges
+    action: observe
+    effects:
+      add: [alert:negative-test-pressure]
+
+  - id: npt-discussion
+    events: [negative-test-shows-flow]
+    requires:
+      present: [alert:negative-test-pressure]
+    substrate: rig-floor-team
+    action: review
+    effects:
+      add: [reviewed:negative-test]
+
+  # Counterfactual: the readings are interpreted as a failed test.
+  - id: npt-called-failed
+    events: [negative-test-shows-flow]
+    requires:
+      present: [reviewed:negative-test]
+    substrate: well-site-leaders
+    action: critical
+    effects:
+      add: [critical:well-integrity-not-proven]
+
+  - id: npt-stop-job
+    events: [negative-test-shows-flow]
+    requires:
+      present: [critical:well-integrity-not-proven]
+    substrate: well-site-leaders
+    action: escalate
+    effects:
+      add: [escalated:stop-abandonment]
+
+  # Reserve: do not displace the riser; keep mud in the well and repair the
+  # barrier. [CC 4.6]: "The well site leaders and rig crew never should have
+  # accepted the test as a success or continued with displacement operations."
+  - id: hold-well-overbalanced
+    role: reserve
+    events: [negative-test-shows-flow]
+    requires:
+      present: [escalated:stop-abandonment]
+    substrate: operations
+    action: respond
+    effects:
+      add: [well:held-overbalanced]
+
+  # --- Kick monitoring: Vedettes feeding an early shut-in Picket ----------
+  # Flow-out / pit-gain watch. Suppressed once returns go overboard, because
+  # that bypassed the pits and the Sperry-Sun flow-out meter [BP, CC 4.7].
+  # Also suppressed if the early gain is masked by trip-tank emptying (only
+  # in the `trip-tank-masking` variant; BP: it "could have masked this flow
+  # indication").
+  - id: kick-flow-out-watch
+    role: vedette
+    events: [influx-begins, influx-grows]
+    substrate: pits-and-sperry-flow-out-meter
+    suppressed_by:
+      present: [monitor:flow-out-bypassed, monitor:flow-out-masked]
+    action: observe
+    effects:
+      add: [alert:kick]
+
+  # Drill-pipe pressure watch. Not affected by the overboard lineup.
+  - id: kick-pressure-watch
+    role: vedette
+    events: [influx-begins, influx-grows]
+    substrate: drill-pipe-pressure
+    action: observe
+    effects:
+      add: [alert:kick]
+
+  # Record: ~21:30 the driller and toolpusher recognised and discussed an
+  # anomalous drill-pipe / kill-line pressure difference [NC ch. 4], but no
+  # flow check or shut-in followed.
+  - id: kick-review
+    events: [influx-begins, influx-grows]
+    requires:
+      present: [alert:kick]
+    substrate: driller
+    action: review
+    effects:
+      add: [reviewed:kick-signs]
+
+  - id: kick-called
+    events: [influx-begins, influx-grows]
+    requires:
+      present: [reviewed:kick-signs]
+    substrate: driller
+    action: critical
+    effects:
+      add: [critical:kick]
+
+  - id: kick-shut-in-order
+    events: [influx-begins, influx-grows]
+    requires:
+      present: [critical:kick]
+    substrate: driller
+    action: escalate
+    effects:
+      add: [escalated:shut-in]
+
+  # Picket: close the BOP on the drill pipe before hydrocarbons pass it
+  # [BP 5C: "any time prior to 21:38 hours"].
+  - id: bop-early-shut-in
+    role: picket
+    events: [hydrocarbons-enter-riser]
+    requires:
+      present: [escalated:shut-in]
+    substrate: bop-manual-control
+    action: block
+    effects:
+      add: [well:shut-in-early]
+
+  # --- Shoe track: a Picket on the bottom-hole path ----------------------
+  # Counterfactual: shoe-track cement and float collar hold [BP KF2].
+  - id: shoe-track-holds
+    role: picket
+    events: [shoe-track-fails]
+    substrate: shoe-track-cement-and-float-collar
+    action: block
+
+  # --- Pipe ram: a Picket that held in the record ------------------------
+  # [BP, CSB 3.3] a pipe ram (VBR) sealed the annulus at ~21:47. Side effect,
+  # modelled in the scenario: the pipe buckles off-centre [CSB KF3].
+  - id: pipe-ram-seals
+    role: picket
+    events: [flow-continues-through-bop]
+    substrate: bop-pipe-rams
+    action: block
+    effects:
+      add: [well:shut-in-on-pipe-ram]
+
+  # --- Diversion overboard: a Reserve ------------------------------------
+  # Counterfactual. [CC 4.8]: "The rig crew should have diverted the flow
+  # overboard when mud started spewing from the rig floor." [BP 5C]: "the
+  # majority of the gas would probably have vented through the starboard
+  # diverter, reducing the likelihood of hydrocarbons reaching an ignition
+  # source". Neither claims it would certainly have prevented ignition; the
+  # `residual-gas-path` variant tests that caveat.
+  - id: divert-overboard
+    role: reserve
+    events: [well-unloads-onto-rig-floor]
+    substrate: diverter-valves
+    action: respond
+    effects:
+      remove: [rig:diverter-lined-to-mgs]
+      add: [rig:diverted-overboard]
+
+  # --- Deadman / AMF closes the blind shear ram: a Reserve ----------------
+  # Record per [CSB 3.2.2]: it fired. It cannot seal when the pipe is
+  # buckled off-centre [CSB 3.2.3], nor against an active blowout beyond the
+  # BOP's design limits [CSB KF1]. Both are encoded as suppressors.
+  - id: deadman-closes-bsr
+    role: reserve
+    events: [gas-ignites]
+    requires:
+      present: [rig:explosion]
+    substrate: bop-control-pods-and-blind-shear-ram
+    suppressed_by:
+      present: [well:pipe-off-center, hazard:flow-through-bop]
+    action: respond
+    effects:
+      add: [well:sealed-by-bsr]

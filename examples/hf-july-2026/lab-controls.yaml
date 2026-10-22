@@ -1,0 +1,72 @@
+# Unified control pool for interactive composition against the existing
+# examples/hf-july-2026/scenario.yaml public-record abstraction.
+id: hf-lab-control-pool
+
+controls:
+  - id: correlate-worker-compromise
+    role: vedette
+    events: [dataset-template-rce]
+    substrate: security-telemetry
+    action: observe
+    effects:
+      add: [alert:worker-compromise]
+
+  - id: reject-privileged-hostpath
+    role: picket
+    events: [privileged-hostpath-pod]
+    substrate: kubernetes-admission
+    action: block
+
+  - id: reject-cross-cluster-connector-replay
+    role: picket
+    events: [shared-connector-credential-replay]
+    substrate: connector-authz
+    action: block
+
+  - id: review-worker-compromise
+    events: [dataset-template-rce]
+    requires:
+      present: [alert:worker-compromise]
+    substrate: soc-oncall
+    action: review
+    effects:
+      add: [reviewed:worker-compromise]
+
+  - id: assess-worker-compromise-critical
+    events: [dataset-template-rce]
+    requires:
+      present: [reviewed:worker-compromise]
+    action: critical
+    effects:
+      add: [critical:worker-compromise]
+
+  - id: escalate-worker-isolation
+    events: [dataset-template-rce]
+    requires:
+      present: [critical:worker-compromise]
+    action: escalate
+    effects:
+      add: [escalated:worker-isolation]
+
+  - id: isolate-worker
+    role: reserve
+    events: [dataset-template-rce]
+    requires:
+      present: [escalated:worker-isolation]
+    action: respond
+    effects:
+      remove: [attacker:worker-access]
+
+  - id: reject-dataset-local-file-read
+    role: picket
+    events: [dataset-local-file-read]
+    substrate: dataset-processing
+    action: block
+
+  # Counterfactual: pods cannot obtain the node's cloud role. Hugging Face's
+  # timeline has the role replayed from external hosts after worker access.
+  - id: block-pod-cloud-metadata
+    role: picket
+    events: [cloud-metadata-role-replay]
+    substrate: cloud-workload-identity
+    action: block

@@ -1,0 +1,188 @@
+# Failed-attempt variant: a barrier that held on April 20 (the casing hanger
+# seal assembly, per BP KF2) does not hold. Otherwise identical to
+# ../scenario.yaml; sources as listed there.
+id: deepwater-horizon-2010-hanger-seal-path
+
+initial_facts:
+  # Pressured hydrocarbon zone at the bottom of the well.
+  - hazard:reservoir-hydrocarbons
+  # [CC ch. 4.8]: "it appears that rig personnel had previously set the valves
+  # on the diverter system to route diverted flow through the mud gas separator
+  # rather than overboard." The diverter lineup is therefore initial state,
+  # not a defensive choice.
+  - rig:diverter-lined-to-mgs
+
+events:
+  # --- Well integrity (BP KF1, KF2) -------------------------------------
+  # [BP KF1] "The annulus cement barrier did not isolate the hydrocarbons."
+  # Nitrified foam cement "probably experienced nitrogen breakout and migration".
+  - id: annulus-cement-fails
+    requires:
+      present: [hazard:reservoir-hydrocarbons]
+    effects:
+      add: [hazard:in-annulus]
+
+  # VARIANT: the shoe track holds, but hydrocarbons in the annulus reach the
+  # well through the casing hanger seal assembly instead. [BP KF2] considered
+  # this path and concluded ingress was "rather than ... up the wellbore
+  # annulus and through the casing hanger seal assembly": the seal held in
+  # the record. The negative-pressure test checks the shoe track, production
+  # casing and casing hanger seal assembly [BP KF3], so it still sees flow.
+  # The event id differs, so a shoe-track Picket has nothing to block here.
+  - id: hanger-seal-fails
+    requires:
+      present: [hazard:in-annulus]
+    effects:
+      add: [well:open-to-reservoir]
+
+  # --- Negative-pressure test (BP KF3) ---------------------------------
+  # [BP chronology 17:52-19:55; NC ch. 4] Drill-pipe pressure built back up
+  # after three bleed-offs, reaching 1,400 psi; the kill-line test showed no
+  # flow; the test was "concluded and considered a good test" at 19:55 [BP].
+  # [CC 4.6]: "The pressure readings and flow indications during the negative
+  # pressure test were not ambiguous." The event only happens when the well
+  # really is open to the reservoir (otherwise the test would truly pass).
+  - id: negative-test-shows-flow
+    requires:
+      present: [well:open-to-reservoir]
+    effects:
+      add: [signal:negative-test-pressure]
+
+  # --- Underbalance and influx (BP KF4) --------------------------------
+  # [BP chronology 20:00-20:52] Seawater pumped down the drill pipe to
+  # displace mud and spacer from the riser; OLGA modelling puts the well
+  # underbalanced at ~20:52. Skipped if someone holds the well overbalanced.
+  - id: displace-riser-with-seawater
+    requires:
+      absent: [well:held-overbalanced]
+    effects:
+      add: [well:underbalanced]
+
+  # [BP 20:52-21:08] Hydrocarbons start flowing into the well. "Approximately
+  # 39 bbls of fluid gain ... from 20:58 hours to 21:08 hours"; drill-pipe
+  # pressure rose 1,250 -> 1,350 psi at constant pump rate from 21:01, "the
+  # first clear indication of flow visible to the rig crew and mudloggers".
+  # BP notes trip-tank emptying could have masked the 20:58 flow-out signal;
+  # the model treats the early gain as detectable (see README caveats).
+  - id: influx-begins
+    requires:
+      present: [well:underbalanced, well:open-to-reservoir]
+    effects:
+      add: [hazard:kick]
+
+  # [BP 21:08-21:14; CC 4.7; NC ch. 4] For the sheen test the crew sent
+  # returns overboard. "Overboard dump line opened during sheen test;
+  # Sperry-Sun flow meter bypassed" [BP]. [CC]: pumping returns "directly from
+  # the well overboard -- bypassing the pits, Sperry-Sun flow-out meter, and
+  # both gas meters -- eliminated the crew's ability to monitor the pits and
+  # the Sperry-Sun flow-out meter for kick indicators." (The Hitec flow-out
+  # sensor was not bypassed, but CC found no evidence it was used.)
+  - id: returns-sent-overboard
+    requires:
+      present: [well:underbalanced]
+    effects:
+      add: [monitor:flow-out-bypassed]
+
+  # [BP 21:08-21:38] With pumps off for the sheen test, drill-pipe pressure
+  # rose 1,017 -> 1,263 psi; modelling gives ~300 bbl gain by 21:31. ~21:30-33
+  # the driller and toolpusher discussed a "differential pressure" [BP, NC];
+  # NC: "neither ... performed a visual flow check or shut in the well".
+  - id: influx-grows
+    requires:
+      present: [hazard:kick]
+    effects:
+      add: [hazard:large-kick]
+
+  # [BP 5C]: "if the BOP had closed and sealed around the drill pipe at any
+  # time prior to 21:38 hours ... the chance for hydrocarbons to enter the
+  # riser and flow to the surface would have been reduced or eliminated."
+  # OLGA puts hydrocarbons into the riser at ~21:38.
+  - id: hydrocarbons-enter-riser
+    requires:
+      present: [hazard:large-kick]
+    effects:
+      add: [hazard:in-riser]
+
+  # --- Surface release and diversion (BP KF5, KF6) ---------------------
+  # [BP ~21:40-21:41; NC; CC] Mud overflowed onto the rig floor and shot up
+  # the derrick. First well-control actions at ~21:41: diverter closed, flow
+  # routed to the mud gas separator (MGS), annular preventer closed.
+  - id: well-unloads-onto-rig-floor
+    requires:
+      present: [hazard:in-riser]
+    effects:
+      add: [hazard:at-surface]
+
+  # [BP KF6] "Once diverted to the MGS, hydrocarbons were vented directly onto
+  # the rig through the 12 in. goosenecked vent exiting the MGS, and other
+  # flow-lines also directed gas onto the rig." ~21:46 high-pressure gas from
+  # MGS vents; ~21:47 first gas alarm [BP chronology]. [CC]: "routing the
+  # influx to the mud gas separator rather than overboard made ignition all
+  # but inevitable."
+  - id: mgs-vents-gas-onto-rig
+    requires:
+      present: [hazard:at-surface, rig:diverter-lined-to-mgs]
+    effects:
+      add: [hazard:gas-on-rig]
+
+  # --- BOP manual closure (BP KF5; CSB 2.5, 3.2.3) ----------------------
+  # [BP] The annular preventer closed ~21:41 but "failed to seal the annulus
+  # for approximately five minutes ... until the annulus was sealed at 21:47
+  # hours, likely by the closure of a VBR". [CSB 3.3]: "The annular preventer
+  # activated by the crew failed to seal the well, but subsequent closure of a
+  # pipe ram did seal it." A pipe-ram Picket blocks this event in the record.
+  - id: flow-continues-through-bop
+    requires:
+      present: [hazard:in-riser]
+    effects:
+      add: [hazard:flow-through-bop]
+
+  # [CSB KF3, 3.2.3] "Large pressure differences were established between the
+  # inside and outside of the drillpipe when well control actions by the crew
+  # sealed the well ... This likely caused drillpipe in the BOP to buckle due
+  # to ... 'effective compression'." Modelled as a physical consequence of the
+  # pipe-ram seal. (BP and earlier reports attributed off-centre pipe to other
+  # forces; see README.)
+  - id: drillpipe-buckles-off-center
+    requires:
+      present: [well:shut-in-on-pipe-ram]
+    effects:
+      add: [well:pipe-off-center]
+
+  # --- Ignition (BP KF7) ------------------------------------------------
+  # [BP KF7] Gas migrated beyond electrically classified areas; engine-room
+  # HVAC "was not designed to trip automatically upon gas detection"; at
+  # least one engine oversped, "creating a potential source of ignition".
+  # 21:49 power lost, two explosions [BP chronology]. Fire-and-gas design is
+  # not offered as a choice (see README); ignition follows gas on the rig.
+  - id: gas-ignites
+    requires:
+      present: [hazard:gas-on-rig]
+    effects:
+      add: [rig:explosion]
+
+  # --- After the explosion (BP KF8; CSB 3.2) ----------------------------
+  # [CSB 3.2.2] The AMF/deadman likely fired and partially closed the blind
+  # shear ram on buckled, off-centre pipe: "The partial closure of the blind
+  # shear rams punctured the drillpipe and caused flow from the well to the
+  # environment to reestablish. This reopening of the well took place minutes
+  # after closure of the pipe rams had actually sealed around the drillpipe."
+  # [BP KF8] differs (AMF likely disabled by pod faults; ROV autoshear closed
+  # the BSR ~33 h later; it did not seal) and BP 5C adds that fire damage or
+  # rig drift-off may have opened a path through the drill pipe. Either way,
+  # once the rig is lost the well is open unless a shear ram has sealed it.
+  - id: well-reopens-after-rig-loss
+    requires:
+      present: [rig:explosion]
+      absent: [well:sealed-by-bsr]
+    effects:
+      add: [hazard:uncontrolled-release]
+
+  # If nothing sealed the BOP, the blowout simply continues (to the rig, or
+  # overboard through the diverter). [BP]: flow "continued for 87 days".
+  - id: blowout-continues
+    requires:
+      present: [hazard:flow-through-bop]
+      absent: [well:sealed-by-bsr]
+    effects:
+      add: [hazard:uncontrolled-release]

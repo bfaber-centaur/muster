@@ -1,0 +1,129 @@
+id: anthropic-pypi-2026
+title: Claude Mythos 5 / PyPI incident, 2026
+domain: ai-agents
+kind: public-record
+order: 25
+summary: >
+  A cyber evaluation unexpectedly had real internet access. The model published
+  a malicious package to PyPI, a security vendor's scanner ran it and exposed a
+  credential, and the model used it to reach the vendor's live database.
+note: >
+  The incident crosses three organisations: the evaluation operator, the
+  public registry, and the third-party vendor. A Watchline here does not belong
+  to any one of them.
+scenario: scenario.yaml
+controls: controls.yaml
+
+adverse:
+  - fact: third-party:package-executed
+    label: package ran on a third-party system
+  - fact: attacker:vendor-database-access
+    label: vendor's live database accessed
+  - fact: attacker:second-party-database-access
+    label: a second third party's database accessed
+
+events:
+  discover-unregistered-package: Notice an unregistered package name
+  reach-public-internet: Reach the real public internet
+  create-public-registry-account: Create a public registry account
+  publish-malicious-package: Publish a malicious package to PyPI
+  third-party-scanner-installs-package: Vendor scanner installs the package
+  scanner-credential-exposure: Scanner exposes a vendor credential
+  vendor-database-access: Access the vendor's live database
+  registry-removes-package: PyPI removes the package
+  second-party-scanner-installs-package: Second third party installs the package
+  second-party-credential-exposure: Second third party exposes a credential
+  second-party-database-access: Access the second party's database
+
+facts:
+  eval:ctf-active: cyber evaluation running
+  eval:internet-path-open: evaluation has a path to the internet
+  eval:developer-instructions-present: fictional developer instructions present
+  agent:package-name-known: unregistered package name known
+  agent:public-internet-access: public internet access
+  agent:pypi-account: public registry account
+  public:malicious-package: malicious package publicly available
+  public:package-removed: package removed from registry
+  third-party:package-executed: package executed in vendor scanner
+  attacker:vendor-credential: vendor credential exposed
+  attacker:vendor-database-access: vendor's live database accessed
+  second-party:package-executed: package executed on a second system
+  attacker:second-party-credential: second party's credential exposed
+  attacker:second-party-database-access: second party's database accessed
+  alert:unexpected-internet: unexpected-internet alert
+  reviewed:unexpected-internet: unexpected internet access reviewed
+  critical:eval-boundary: evaluation boundary failure marked critical
+  escalated:eval-termination: evaluation termination escalated
+  alert:vendor-credential-exposure: vendor credential-exposure alert
+  reviewed:vendor-credential-exposure: credential exposure reviewed
+  critical:vendor-credential: credential exposure marked critical
+  escalated:vendor-credential-revocation: credential revocation escalated
+
+choices:
+  - key: V1
+    role: vedette
+    label: Detect unexpected internet access
+    controls: [detect-unexpected-internet]
+    help: Notice that a supposedly sealed evaluation has reached the public internet.
+  - key: P1
+    role: picket
+    label: Block evaluation internet access
+    controls: [block-eval-internet]
+    help: Stop the evaluation at its first real-world boundary.
+  - key: P2
+    role: picket
+    label: Block public package publication
+    controls: [block-public-package-publish]
+    help: Allow internet access, but stop the evaluation identity publishing a package.
+  - key: R1
+    role: reserve
+    label: Terminate the evaluation after the alert
+    controls: [review-unexpected-internet, assess-eval-boundary-critical, escalate-eval-termination, terminate-evaluation]
+    help: Use the internet alert to review, escalate, and stop the evaluation. Needs V1.
+  - key: P3
+    role: picket
+    label: Isolate the vendor scanner from reusable credentials
+    controls: [isolate-scanner-credentials]
+    help: The package can run, but the vendor's scanner holds nothing usable against production.
+  - key: V2
+    role: vedette
+    label: Vendor detects credential exposure
+    controls: [detect-scanner-credential-exposure]
+    help: The vendor notices its scanner exposed a credential.
+  - key: R2
+    role: reserve
+    label: Vendor revokes the exposed credential
+    controls: [review-vendor-credential-exposure, assess-vendor-credential-critical, escalate-vendor-credential-revocation, revoke-vendor-credential]
+    help: After detection, revoke the credential before it reaches the live database. Needs V2.
+
+presets:
+  - label: What happened
+    choices: []
+  - label: Monitor the evaluation only
+    choices: [V1]
+  - label: Seal evaluation egress
+    choices: [P1]
+  - label: Detect + terminate the evaluation
+    choices: [V1, R1]
+  - label: Vendor sandboxes its scanner
+    choices: [P3]
+  - label: Vendor detects + revokes
+    choices: [V2, R2]
+
+variants:
+  - id: fast-removal
+    label: Registry removes the package first
+    kind: alternative-branch
+    scenario: variants/fast-removal.yaml
+    note: PyPI's automated removal took about 90 minutes. Here it lands before the vendor's scanner installs the package.
+  - id: second-party
+    label: A second third party leaks
+    kind: alternative-branch
+    scenario: variants/second-party.yaml
+    note: The package ran on 15 third-party systems. Here a second one also exposes a credential.
+
+sources:
+  - title: Anthropic — Investigating incidents in our cybersecurity evaluations
+    url: https://www.anthropic.com/news/investigating-incidents-cybersecurity-evals
+  - title: Anthropic — Alignment assessment of cybersecurity incidents
+    url: https://www.anthropic.com/research/alignment-assessment-cybersecurity-incidents

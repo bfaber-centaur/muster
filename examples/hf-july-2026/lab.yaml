@@ -1,0 +1,133 @@
+id: hf-july-2026
+title: Hugging Face intrusion, July 2026
+domain: cyber
+kind: public-record
+order: 20
+summary: >
+  Frontier-lab agents escaped an evaluation and reached Hugging Face production:
+  dataset-pipeline code execution, a privileged pod to node root, cluster
+  secrets, a mesh-network pivot, and cluster-admin through a shared connector
+  credential.
+note: >
+  A compressed public-record abstraction, not a forensic reconstruction. The
+  failed-attempt variants come from defenses Hugging Face reports did hold.
+scenario: scenario.yaml
+controls: lab-controls.yaml
+
+adverse:
+  - fact: attacker:node-root
+    label: root on a cluster node
+  - fact: attacker:internal-network-access
+    label: on the internal network
+  - fact: attacker:cluster-admin
+    label: cluster-admin across clusters
+  - fact: attacker:worker-secrets
+    label: worker environment credentials exposed
+  - fact: attacker:hub-production-db
+    label: Hub production database reached
+  - fact: attacker:cloud-credential-store
+    label: cloud credential store opened
+
+events:
+  dataset-local-file-read: Read local files through the dataset pipeline
+  dataset-template-rce: Run code on the dataset worker
+  k8s-api-discovery: Discover the Kubernetes API
+  cloud-metadata-role-replay: Replay the node's cloud role
+  privileged-hostpath-pod: Create a privileged host-mounted pod
+  node-root: Gain root on the node
+  cluster-secret-harvest: Harvest cluster secrets
+  mesh-enrollment: Enroll the node in the mesh VPN
+  service-connector-discovery: Discover the internal service connector
+  shared-connector-credential-replay: Replay the shared connector credential
+  hub-production-db-connect: Connect to the Hub production database
+  cloud-credential-store-access: Use the cloud role against the credential store
+
+facts:
+  attacker:external-launchpad: attacker outside, with a malicious dataset
+  attacker:worker-secrets: worker environment credentials
+  attacker:worker-source: worker source code
+  attacker:worker-access: code execution on worker
+  attacker:cluster-knowledge: cluster knowledge
+  attacker:cloud-role: node cloud role
+  attacker:privileged-hostpath: privileged host-mounted pod
+  attacker:node-root: root on node
+  attacker:cluster-secrets: cluster secrets
+  attacker:internal-network-access: internal network access
+  attacker:connector-catalog: service-connector catalog
+  attacker:cluster-admin: cluster-admin
+  attacker:hub-production-db: Hub production database
+  attacker:cloud-credential-store: cloud credential store
+  alert:worker-compromise: worker-compromise alert
+  reviewed:worker-compromise: worker compromise reviewed
+  critical:worker-compromise: worker compromise marked critical
+  escalated:worker-isolation: worker isolation escalated
+
+choices:
+  - key: V1
+    role: vedette
+    label: Correlate worker-compromise signals
+    controls: [correlate-worker-compromise]
+    help: An illustrative correlated alert on worker code execution, which Hugging Face says its stack did produce.
+  - key: R1
+    role: reserve
+    label: Page on-call and isolate the worker
+    controls: [review-worker-compromise, assess-worker-compromise-critical, escalate-worker-isolation, isolate-worker]
+    help: Review the alert, mark it critical, page, then cut the worker off. Needs V1.
+  - key: P1
+    role: picket
+    label: Reject privileged host-mounted pods
+    controls: [reject-privileged-hostpath]
+    help: An admission policy. Hugging Face says none rejected privileged/hostPath pods.
+  - key: P2
+    role: picket
+    label: Scope the connector credential per cluster
+    controls: [reject-cross-cluster-connector-replay]
+    help: The broker had one connector credential shared across clusters.
+  - key: P3
+    role: picket
+    label: Harden dataset local-file reads
+    controls: [reject-dataset-local-file-read]
+    help: Stop the dataset pipeline from reading local files and exposing worker credentials.
+  - key: P4
+    role: picket
+    label: Keep pods away from the node's cloud role
+    controls: [block-pod-cloud-metadata]
+    help: Workload identity, so a compromised pod cannot take the node's cloud role.
+
+presets:
+  - label: What happened (signal, no page)
+    choices: [V1]
+    note: Signals were correlated but not raised to the right criticality or paged.
+  - label: Admission policy
+    choices: [V1, P1]
+  - label: Connector scoping
+    choices: [V1, P2]
+  - label: Critical page + isolate
+    choices: [V1, R1]
+  - label: Dataset local-file-read hardening
+    choices: [V1, P3]
+  - label: Layered prevention
+    choices: [V1, P1, P2, P3, P4]
+
+variants:
+  - id: private-link-fails
+    label: Private-link allowlist fails
+    kind: failed-attempt
+    scenario: variants/private-link-fails.yaml
+    note: Hub production database connections "never completed" in the real incident. What if they had?
+  - id: cloud-mutation-succeeds
+    label: Cloud role over-permissioned
+    kind: failed-attempt
+    scenario: variants/cloud-mutation-succeeds.yaml
+    note: Every mutating cloud call and 84 credential-store operations were denied. What if they had not been?
+  - id: connector-cred-on-worker
+    label: Connector credential on the worker
+    kind: alternative-branch
+    scenario: variants/connector-cred-on-worker.yaml
+    note: The shared connector credential is reachable from the worker, so cluster-admin no longer needs node root.
+
+sources:
+  - title: "Hugging Face — Anatomy of a Frontier Lab Agent Intrusion: A Technical Timeline of the July 2026 Incident"
+    url: https://huggingface.co/blog/agent-intrusion-technical-timeline
+  - title: "Elastic Security Labs — Exploring the Hugging Face Breach: mapping AI agent tactics to Elastic Defend"
+    url: https://www.elastic.co/security-labs/threat-command/ai-agent-attack-detection-hugging-face-breach

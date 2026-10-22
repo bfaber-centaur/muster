@@ -1,0 +1,210 @@
+# Alternative branch: Monday 8 Feb is a Philippine business day. In the record,
+# the bulk of the money sat in the fake accounts over the long weekend and left
+# on Tuesday 9 Feb, AFTER BB's stop-payment arrived at about 9:11 a.m.
+# (SDNY opinion). Here the launderers drain the accounts as soon as the bank
+# reopens, before the recorded stop-payment. So ph-bulk-drain moves ahead of
+# stoppay-reaches-rcbc. This is a plausible ordering, not a documented one.
+# Sources and step-by-step citations: see ../scenario.yaml. Only the change is commented here.
+
+id: bangladesh-bank-2016-no-ph-holiday
+
+initial_facts:
+  # [DOJ paras. 148-164]: spear-phishing of Bangladesh Bank (BB) staff from
+  # Jan 2015, and a backdoor on the BB network by March 2015.
+  - attacker:bb-network-foothold
+  # [SDNY]: four RCBC accounts in fictitious names, opened 15 May 2015 at the
+  # Jupiter (Street) branch in Makati with $500 each, dormant until 5 Feb 2016.
+  - mule:rcbc-fake-accounts
+  # [R-JUL]: "Jupiter" was part of the address of the Philippine bank in the
+  # orders. It is also the name of an oil tanker and a shipping company under
+  # US sanctions against Iran. Neither of those was involved in the heist.
+  - orders:sanctions-like-name
+  # [R-MAR]: officials said the hackers spelled "foundation" as "fandation".
+  # [R-APR] gives "Fundation". Either way, the Sri Lankan payee name was
+  # misspelled.
+  - orders:payee-misspelled
+  # [R-APR]: Pan Asia Bank (Colombo) "refused to release the funds as the
+  # amount was unusually large and sought further verification".
+  # [DOJ para. 144]: the $20M "was stopped by the recipient bank".
+  - lk:recipient-bank-verifies-large-credit
+  # [SDNY]: orders were sent Thursday 4 Feb after close of business. BB works
+  # Sunday-Thursday. [R-JUL]: staff left on Friday 5 Feb for the holy day.
+  - calendar:bb-weekend
+
+events:
+  # [DOJ para. 164c-d], [SDNY]: on 29 Jan 2016 the attackers moved laterally to
+  # SWIFTLIVE, BB's SWIFT Alliance Access server. [BAE]: malware on that
+  # server patched a check in the Alliance software, deleted transactions from
+  # the local database, and sent "doctored" copies of messages to the printer.
+  # [R-JUL]: BB investigators said malware "disabled the printer".
+  # Compressed into one step that grants both capabilities.
+  - id: compromise-swift-server
+    requires:
+      present: [attacker:bb-network-foothold]
+    effects:
+      add: [attacker:swift-access, attacker:print-tamper]
+
+  # [R-JUL]: from about 9:55 a.m. New York time on Thu 4 Feb (late evening in
+  # Dhaka), 35 orders worth nearly $1B. All 35 lacked correspondent-bank
+  # names, and most were to individuals. [SDNY]: 8:55 p.m.-1:00 a.m. Dhaka time.
+  - id: send-fraudulent-orders
+    requires:
+      present: [attacker:swift-access]
+    effects:
+      add: [orders:misformatted]
+
+  # [R-JUL]: the first 35 messages "were rejected for incorrect formatting".
+  # A Picket that held, and that the attacker simply worked around.
+  - id: fed-rejects-misformatted-orders
+    requires:
+      present: [orders:misformatted]
+    effects:
+      remove: [orders:misformatted]
+      add: [orders:rejected]
+
+  # [R-JUL]: "the hackers simply fixed the formatting and sent another 35
+  # requests". [SDNY] counts 70 orders in all.
+  - id: resubmit-corrected-orders
+    requires:
+      present: [orders:rejected, attacker:swift-access]
+    effects:
+      remove: [orders:rejected]
+      add: [orders:at-fed]
+
+  # [R-JUL]: five orders "were properly formatted, SWIFT authenticated and went
+  # through automatically", for $101M in total. [SDNY]: four orders ($81M) went
+  # through four US correspondent accounts on 4 Feb and reached the fake RCBC
+  # accounts on Fri 5 Feb. The fifth ($20M) went to Sri Lanka.
+  # Compressed: correspondent hops folded into this step.
+  - id: fed-auto-clears-five
+    requires:
+      present: [orders:at-fed]
+    effects:
+      add: [funds:in-rcbc-fake-accounts, funds:lk-in-flight]
+
+  # [R-JUL]: on Thu 4 Feb (NY; about 4 a.m. Fri in Dhaka) Fed staff were
+  # concerned enough about 12 orders to message BB over SWIFT. More SWIFT
+  # queries followed on Fri 5 Feb. "The messages did not get through. And the
+  # New York Fed did not reach out to Dhaka in any other way."
+  # Compressed: the Feb 4 and Feb 5 queries are one step.
+  - id: fed-queries-dhaka
+    requires:
+      present: [orders:at-fed]
+    effects:
+      add: [query:fed-unanswered]
+
+  # Sri Lanka leg. [R-MAR]: officials said the misspelling prompted a routing
+  # bank, Deutsche Bank, to seek clarification, "which stopped the
+  # transaction". [R-APR] says the money reached Pan Asia Bank before the
+  # transfer was reversed. The accounts disagree about which barrier stopped
+  # it, so both are modeled as Pickets in series.
+  - id: sri-lanka-routing-query
+    requires:
+      present: [funds:lk-in-flight, orders:payee-misspelled]
+    effects:
+      remove: [funds:lk-in-flight]
+      add: [funds:lk-held]
+
+  - id: sri-lanka-recipient-hold
+    requires:
+      present: [funds:lk-in-flight, lk:recipient-bank-verifies-large-credit]
+    effects:
+      remove: [funds:lk-in-flight]
+      add: [funds:lk-held]
+
+  # Not in the record: the $20M is released to the payee.
+  - id: sri-lanka-payout
+    requires:
+      present: [funds:lk-in-flight]
+    effects:
+      remove: [funds:lk-in-flight]
+      add: [loss:sri-lanka-paid-out]
+
+  # [SDNY]: Fri 5 Feb (Manila), late morning. A $22M cash deposit was moved
+  # from a fake account into a newly opened account, then on through the
+  # remitter Philrem; $12.46M was withdrawn as manager's checks and $380,000 as
+  # cash. That afternoon $13.5M of pesos was bought for a Philrem account.
+  # RCBC put a temporary hold on the Philrem and Go-Centurytex accounts that
+  # evening and lifted it 45 minutes later.
+  # Late morning in Manila is about 9-10 a.m. in Dhaka, before BB staff arrived.
+  - id: ph-first-tranche-out
+    requires:
+      present: [funds:in-rcbc-fake-accounts]
+    effects:
+      add: [loss:ph-first-tranche-out, funds:at-remitter]
+
+  # [R-JUL]: about 10:30 a.m. on Fri 5 Feb (Dhaka) a BB joint director found no
+  # SWIFT acknowledgements and could not print them. He took it for a routine
+  # printer fault and left around 11:15. Others left at about 12:30 for the
+  # Friday holy day, "leaving the printer fix until later".
+  # The recorded Vedette: the tampering left a VISIBLE gap, but nobody chased it.
+  - id: bb-notices-missing-confirmations
+    requires:
+      present: [attacker:print-tamper]
+    effects:
+      add: [alert:print-failure]
+
+  # [SDNY]: Tue 9 Feb, 10:24-11:37 a.m.: $42.9M and $15.2M moved out of the fake
+  # accounts, leaving about $10,000. Branch staff kept processing until
+  # 3:12 p.m. Only at 3:31 p.m. did RCBC freeze the (now empty) fake accounts.
+  # More movement followed on 10-11 Feb.
+  - id: ph-bulk-drain
+    requires:
+      present: [funds:in-rcbc-fake-accounts]
+    effects:
+      remove: [funds:in-rcbc-fake-accounts]
+      add: [loss:ph-bulk-out, funds:at-remitter]
+
+  # [R-JUL]: on Fri 5 Feb the Fed began a full manual review because "Jupiter"
+  # matched a sanctions listing. Four of the five orders it had already
+  # cleared contained "Jupiter". The screen did not stop those four; it set
+  # off the review.
+  - id: sanctions-screen-hits-jupiter
+    requires:
+      present: [orders:at-fed, orders:sanctions-like-name]
+    effects:
+      add: [fed:manual-review]
+
+  # [R-JUL]: the manual review found the payments "potentially suspicious".
+  # The other 30 orders (about $850M) were not paid.
+  - id: fed-holds-remaining-orders
+    requires:
+      present: [orders:at-fed, fed:manual-review]
+    effects:
+      remove: [orders:at-fed]
+      add: [orders:held-at-fed]
+
+  # Not in the record: the Fed pays the remaining orders. [R-JUL] quotes a
+  # person familiar with the Fed's handling: it was a "total fluke" that the
+  # Fed did not pay the $951M requested.
+  - id: fed-pays-remaining-orders
+    requires:
+      present: [orders:at-fed]
+    effects:
+      remove: [orders:at-fed]
+      add: [loss:bulk-orders-paid]
+
+  # The recorded stop-payment, compressed into one step.
+  # [R-JUL]: Sat 6 Feb, SWIFT would not start ("a file is missing or
+  # changed"). BB emailed and faxed Fed contacts that were monitored only on
+  # weekdays. At about 12:30 p.m. staff printed the messages and saw the fraud.
+  # Mon 8 Feb: a "Top urgent" message went to the Fed.
+  # [SDNY]: BB's STOPPAY to RCBC went on Monday, but RCBC was "logged off the
+  # SWIFT server" from Sun 7 Feb 6:54 a.m. to Tue 9 Feb 9:11 a.m. Mon 8 Feb
+  # was a Philippine holiday. RCBC received the STOPPAY at about 9:11 a.m. Tue.
+  - id: stoppay-reaches-rcbc
+    requires:
+      present: [funds:in-rcbc-fake-accounts]
+    effects:
+      add: [stoppay:at-rcbc]
+
+  # [SDNY]: 5-11 Feb, Philrem paid about $29M into Solaire's account and
+  # delivered $31M in cash to individuals who played there. On 10-11 Feb it
+  # deposited $20M with Eastern Hawaii (Midas casino). Chips were played until
+  # 10 Mar. [DOJ para. 144]: "The majority of the $81,000,000 has not been
+  # recovered to date" (June 2018).
+  - id: casino-dispersal
+    requires:
+      present: [funds:at-remitter]
+    effects:
+      add: [loss:casino-laundered]

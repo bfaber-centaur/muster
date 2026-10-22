@@ -1,0 +1,163 @@
+id: fire-overhaul-evidence
+title: Fire overhaul vs. arson evidence
+domain: fire
+kind: illustrative
+order: 70
+summary: >
+  After a house fire is knocked down, firefighters must tear open walls and pull
+  out smouldering debris ("overhaul") or the fire may flare up again. Done before
+  an investigator looks, that same work can wipe out the evidence of how the fire
+  started, so a deliberately set fire is never identified and the person who set
+  it is free to set another. Can you prevent the rekindle and still keep the
+  evidence?
+note: >
+  Illustrative, not one specific fire. The tension is documented in NIJ, USFA and
+  National Fire Academy guidance; the step "a rekindle burns away the area of
+  origin" is a modelling inference, and "cause established" stands in for "the
+  firesetter can be intercepted", which in reality is far from certain.
+scenario: scenario.yaml
+controls: controls.yaml
+
+adverse:
+  - fact: fire:rekindled
+    label: fire rekindled in the same building
+  - fact: cause:undetermined
+    label: origin and cause left undetermined
+  - fact: harm:another-fire-set
+    label: firesetter set another fire
+
+events:
+  incendiary-fire-set: Someone deliberately sets the fire
+  accidental-fire-starts: Fire starts by accident
+  firefighters-arrive: First firefighters arrive
+  ems-stages-nearby: Ambulance stages nearby
+  knockdown: Main fire knocked down
+  overhaul-window: Crews turn to overhaul
+  rekindle-after-crews-leave: Hidden fire flares up after crews leave
+  deep-rekindle-after-crews-leave: Deep-seated fire flares up after crews leave
+  origin-cause-examination: Investigator examines origin and cause
+  firesetter-intercepted: Arson case opened, firesetter stopped
+  rekindle-after-release: Leftover fire flares up after scene released
+  deep-rekindle-after-release: Leftover deep-seated fire flares up after release
+  firesetter-strikes-again: Firesetter sets another fire
+
+facts:
+  firesetter:at-large: firesetter at large
+  cause:undetermined: origin and cause undetermined
+  fire:burning: fire burning
+  fire:knocked-down: main fire knocked down
+  fire:rekindled: fire rekindled
+  evidence:origin-patterns: origin evidence intact (fire patterns, contents in place)
+  sign:incendiary-indicators: visible signs of a set fire
+  responders:on-scene: firefighters on scene
+  ems:staged: ambulance staged
+  hazard:hidden-fire: hidden fire in walls or debris
+  hazard:deep-seated-fire: deep-seated fire a thermal camera misses
+  scene:overhaul-phase: overhaul phase begun
+  scene:examined: scene examined by investigator
+  cause:incendiary-established: deliberate cause established
+  cause:accidental-established: accidental cause established
+  investigator:called: fire investigator called
+  alert:suspicious-fire: crew reported fire as suspicious
+  overhaul:on-hold: overhaul on hold for investigator
+  harm:another-fire-set: another fire set
+
+choices:
+  - key: V1
+    role: vedette
+    label: Look for signs of arson on arrival
+    controls: [note-arson-indicators]
+    help: Crews notice and report things like several separate fires or a trail of fuel.
+  - key: P1
+    role: picket
+    label: Fire watch until investigator arrives
+    controls: [fire-watch-until-investigator]
+    help: A crew stays and puts out flare-ups while the scene waits, but leaves when the scene is released.
+  - key: R1
+    role: reserve
+    label: Full overhaul right away
+    controls: [full-overhaul-now]
+    help: Routine practice of opening walls and pulling contents to kill hidden fire, which also wipes out fire patterns.
+  - key: R2
+    role: reserve
+    label: Call a fire investigator
+    controls: [call-investigator]
+    help: Request an investigator, who arrives some time after the fire is knocked down.
+  - key: R3
+    role: reserve
+    label: Hold overhaul for the investigator
+    controls: [hold-overhaul-for-investigator, overhaul-after-examination]
+    help: If arson is suspected and an investigator is coming, wait to overhaul until they have examined the scene.
+  - key: R4
+    role: reserve
+    label: Targeted overhaul with thermal camera
+    controls: [targeted-overhaul]
+    help: Find hot spots with a thermal camera and open only small holes, leaving most evidence in place.
+
+presets:
+  - label: Routine overhaul
+    choices: [R1]
+    note: The default sequence the guidance warns about. No rekindle, but the scene is gone before anyone asks how it started.
+  - label: Overhaul, then investigator
+    choices: [V1, R1, R2]
+    note: Crews spot arson signs and call an investigator, but overhaul before the investigator arrives.
+  - label: Hold overhaul, no fire watch
+    choices: [V1, R1, R2, R3]
+    note: Adds the evidence-preserving hold to the previous Watchline. Without anyone watching, the hidden fire flares up.
+  - label: Hold overhaul with fire watch
+    choices: [V1, P1, R1, R2, R3]
+    note: The sequence the guidance describes, with a hold for the investigator, a crew watching spot fires, then overhaul.
+  - label: Minimum overhaul
+    choices: [R2, R4]
+    note: Overhaul only what a thermal camera shows and call an investigator, with no hold or watch.
+
+variants:
+  - id: accidental-fire
+    label: Accidental fire
+    kind: alternative-branch
+    scenario: variants/accidental-fire.yaml
+    note: >
+      The fire was not set. There are no signs of arson and no firesetter.
+      The serial-arson harm cannot occur, but an undetermined cause still
+      hides product or wiring faults.
+  - id: investigator-first
+    label: Investigator documents before overhaul
+    kind: alternative-branch
+    scenario: variants/investigator-first.yaml
+    note: >
+      The investigator is already on scene and examines it right after
+      knockdown, before overhaul begins.
+  - id: deep-seated-fire
+    label: Deep-seated hidden fire
+    kind: alternative-branch
+    scenario: variants/deep-seated-fire.yaml
+    note: >
+      Some fire is buried where a thermal camera and small holes do not reach
+      (e.g. blown-in cellulose insulation).
+  - id: ems-stages
+    label: Ambulance stages nearby
+    kind: perturbation
+    scenario: variants/ems-stages.yaml
+    note: Adds a causally irrelevant event. Nothing should change.
+
+sources:
+  - title: "NIJ, Fire and Arson Scene Evidence: A Guide for Public Safety Personnel (NCJ 181584, 2000)"
+    url: https://www.ojp.gov/pdffiles1/nij/181584.pdf
+  - title: "USFA, Fire investigation: The first responder's role"
+    url: https://www.usfa.fema.gov/a-z/arson-fire-investigation/fire-investigations-first-responders.html
+  - title: "National Fire Academy, Fire Investigation: First Responders, Student Manual (Jan 2025 printing)"
+    url: https://apps.usfa.fema.gov/ax/sm/sm_0770.pdf
+  - title: "National Fire Academy, F0379 Fire Investigation: First Responders, course syllabus"
+    url: https://apps.usfa.fema.gov/ax/syll/syllabus_f0379.pdf
+  - title: "Phoenix Regional SOP M.P. 202.12B, Overhaul (2022)"
+    url: https://www.phoenix.gov/firesite/Documents/074729.pdf
+  - title: "Codding & Bohn, Incident Commander's Guide to Preserving Evidence, Fire Engineering (2006)"
+    url: https://www.fireengineering.com/firefighting/incident-commanderrsquos-guide-to-preserving-evidence
+  - title: "Soong, Rekindle vs. Spoliation, Fire Engineering (2019)"
+    url: https://www.fireengineering.com/firefighting/rekindle-vs-spoliation/
+  - title: "Facey, How to Avoid Spoliation During Overhaul, Firehouse (2016)"
+    url: https://www.firehouse.com/community-risk/article/12202457/how-to-avoid-spoliation-during-overhaul
+  - title: "Palumbo, Fire Investigation Concerns for Firefighters and Fire Officers, Fire Engineering (2026)"
+    url: https://www.fireengineering.com/?p=706997
+  - title: "Vincent Dunn, Fire Rekindle (newsletter)"
+    url: https://www.vincentdunn.com/downloads/training-minutes/fire-rekindle.pdf

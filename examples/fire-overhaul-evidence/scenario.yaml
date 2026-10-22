@@ -1,0 +1,112 @@
+# Fire overhaul vs. origin-and-cause evidence — ILLUSTRATIVE compressed trace.
+#
+# Not one specific fire. A textbook mechanism from fire-investigation guidance:
+# overhaul (opening walls/ceilings, pulling smouldering debris) is needed to stop
+# a rekindle, but done before the investigator examines the scene it can destroy
+# the fire patterns used to establish origin and cause.
+#
+# Sources (all opened; see README.md for full citations and quotes):
+#   [NIJ]   NIJ, Fire and Arson Scene Evidence: A Guide for Public Safety Personnel (NCJ 181584, 2000)
+#   [USFA]  USFA, "Fire investigation: The first responder's role" (web page)
+#   [NFA]   NFA, Fire Investigation: First Responders, Student Manual (1st ed., 7th printing, Jan 2025)
+#   [PHX]   Phoenix Regional SOP M.P. 202.12B "Overhaul" (2022)
+#   [CB]    Codding & Bohn, "Incident Commander's Guide to Preserving Evidence", Fire Engineering (2006)
+#   [DUNN]  Vincent Dunn, "Fire Rekindle" newsletter
+#
+# Fact conventions:
+#   evidence:origin-patterns  — the physical scene an investigator needs (fire
+#                               patterns, arc sites, room contents in place) [NIJ, NFA]
+#   hazard:hidden-fire        — smouldering fire in voids/contents after knockdown [DUNN, PHX]
+#   cause:undetermined        — starts TRUE; NIJ: "all fires are considered accidental
+#                               until they can be proven to be intentionally set"
+id: fire-overhaul-evidence
+
+initial_facts:
+  - firesetter:at-large
+  - cause:undetermined
+
+events:
+  # 1. Someone deliberately sets the fire. It leaves origin evidence and some
+  #    visible indicators (e.g. multiple fire locations, trailers) [NIJ 3.A list].
+  - id: incendiary-fire-set
+    requires:
+      present: [firesetter:at-large]
+    effects:
+      add: [fire:burning, evidence:origin-patterns, sign:incendiary-indicators]
+
+  # 2. First engine arrives. Firefighters are "the eyes and ears" of the
+  #    investigator [USFA]; observation controls attach here.
+  - id: firefighters-arrive
+    requires:
+      present: [fire:burning]
+    effects:
+      add: [responders:on-scene]
+
+  # 3. Main body of fire knocked down; fire may still smoulder in voids and
+  #    furnishings [DUNN; PHX "Hidden fires"].
+  - id: knockdown
+    requires:
+      present: [fire:burning, responders:on-scene]
+    effects:
+      remove: [fire:burning]
+      add: [fire:knocked-down, hazard:hidden-fire]
+
+  # 4. Crews turn to overhaul. Overhaul itself is modelled as CONTROLS on this
+  #    event (routine full overhaul, targeted overhaul, or a hold), not as an
+  #    event, because it is the defensive choice under study.
+  - id: overhaul-window
+    requires:
+      present: [fire:knocked-down]
+    effects:
+      add: [scene:overhaul-phase]
+
+  # 5. Crews leave; un-found hidden fire flares up again [DUNN; PHX definition of
+  #    rekindle]. MODELLING INFERENCE: the second fire burns through the area of
+  #    origin and destroys the patterns (NIJ: "The larger a fire becomes and the
+  #    longer it burns, the less evidence of causation will remain"; DUNN: "the
+  #    second fire is much larger than the first"). A fire watch can block this.
+  - id: rekindle-after-crews-leave
+    requires:
+      present: [hazard:hidden-fire]
+    effects:
+      add: [fire:rekindled]
+      remove: [hazard:hidden-fire, evidence:origin-patterns]
+
+  # 6. Investigator (called earlier, arrives later) examines the scene. Needs the
+  #    physical scene to still be there [NFA: "Fire investigation occurs between
+  #    suppression and overhaul"; "Overhaul prior to investigation may have
+  #    destroyed this evidence"].
+  - id: origin-cause-examination
+    requires:
+      present: [investigator:called, evidence:origin-patterns]
+    effects:
+      add: [scene:examined, cause:incendiary-established]
+      remove: [cause:undetermined]
+
+  # 7. An established incendiary cause lets police open an arson case and link
+  #    the fire to others. SIMPLIFICATION: in reality an established cause does not
+  #    guarantee an arrest; here it stands for "the firesetter can be intercepted"
+  #    [NIJ: incendiary fires "must be detected, so that the firesetter can be
+  #    intercepted before doing more harm"].
+  - id: firesetter-intercepted
+    requires:
+      present: [cause:incendiary-established]
+    effects:
+      remove: [firesetter:at-large]
+
+  # 8. Scene released. Any hidden fire still left (e.g. a fire watch held it but
+  #    nobody ever overhauled) can still rekindle. A fire watch postpones, it does
+  #    not extinguish [PHX: post-incident walk-throughs, fire watch].
+  - id: rekindle-after-release
+    requires:
+      present: [hazard:hidden-fire]
+    effects:
+      add: [fire:rekindled]
+      remove: [hazard:hidden-fire]
+
+  # 9. A firesetter who was never identified sets another fire.
+  - id: firesetter-strikes-again
+    requires:
+      present: [firesetter:at-large]
+    effects:
+      add: [harm:another-fire-set]

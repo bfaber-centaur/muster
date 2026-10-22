@@ -1,0 +1,669 @@
+<title>Muster Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Pick defenses, replay a real incident, and see what the adversary can still reach.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+<style>
+/* Layout: a field map. The incident is a line of march down the page; defenses
+   are marked on it with role symbols, the Watchline sits beside it. */
+:root {
+  --paper: #eef2ec;
+  --panel: #fafcf8;
+  --ink: #17201c;
+  --muted: #56655d;
+  --rule: #cfd9d1;
+  --grid: #e1e8e2;
+  --accent: #1c5aa3;
+  --vedette: #16707f;
+  --picket: #9a6312;
+  --reserve: #74468f;
+  --harm: #b9302a;
+  --harm-bg: #f8e3e0;
+  --safe: #2c7149;
+  --safe-bg: #e0f0e5;
+  --skip: #8a968f;
+
+  --display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.5rem;
+  --step-3: 2.25rem;
+  --step-4: 3.5rem;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e1412; --panel: #151d1a; --ink: #e4ebe6; --muted: #93a39a; --rule: #2b3732; --grid: #1b2420;
+    --accent: #7aaef0; --vedette: #4fb6c6; --picket: #e2aa4f; --reserve: #b991d9;
+    --harm: #f2766b; --harm-bg: #3a1c1a; --safe: #62c48f; --safe-bg: #15301f; --skip: #6c7a73;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e1412; --panel: #151d1a; --ink: #e4ebe6; --muted: #93a39a; --rule: #2b3732; --grid: #1b2420;
+  --accent: #7aaef0; --vedette: #4fb6c6; --picket: #e2aa4f; --reserve: #b991d9;
+  --harm: #f2766b; --harm-bg: #3a1c1a; --safe: #62c48f; --safe-bg: #15301f; --skip: #6c7a73;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: var(--step-0);
+  line-height: 1.5;
+}
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--display); font-weight: 800; letter-spacing: 0.01em; text-wrap: balance; margin: 0; line-height: 1.05; }
+h2 { font-size: var(--step-2); text-transform: uppercase; letter-spacing: 0.04em; }
+h3 { font-size: var(--step-1); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+p { margin: 0; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eyebrow { font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); }
+
+/* Masthead */
+header.mast { padding-block: 28px 18px; }
+.mast-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 32px; }
+.wordmark { font-size: var(--step-4); letter-spacing: 0.06em; }
+.wordmark span { color: var(--accent); }
+.thesis { max-width: 38rem; font-size: var(--step-1); }
+.thesis b { font-weight: 700; }
+
+/* Scenario rail */
+.rail { display: flex; gap: 10px; overflow-x: auto; padding-block: 6px 14px; scroll-snap-type: x proximity; }
+.lab-tab {
+  flex: 0 0 auto; width: 230px; scroll-snap-align: start;
+  display: grid; gap: 6px; align-content: start; text-align: left;
+  background: var(--panel); border: 1px solid var(--rule); border-radius: var(--radius);
+  padding: 10px 12px 12px; cursor: pointer;
+}
+.lab-tab:hover { border-color: var(--muted); }
+.lab-tab[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--accent); }
+.lab-tab .t { font-family: var(--display); font-weight: 600; font-size: var(--step-1); line-height: 1.1; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--rule); color: var(--muted); }
+.tag.kind-public-record { color: var(--accent); border-color: currentColor; }
+.tag.kind-illustrative { color: var(--picket); border-color: currentColor; }
+.tag.kind-synthetic { color: var(--reserve); border-color: currentColor; }
+
+/* Main grid */
+main.grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 20px; align-items: start; padding-block: 8px 24px; }
+@media (max-width: 920px) { main.grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--radius); padding: 18px; display: grid; gap: 16px; align-content: start; min-width: 0; }
+.watchline { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+@media (max-width: 920px) { .watchline { position: static; } }
+
+.lab-summary { display: grid; gap: 8px; }
+.lab-summary .note { font-size: var(--step--1); color: var(--muted); }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button {
+  border: 1px solid var(--rule); background: transparent; border-radius: 999px; padding: 4px 11px; cursor: pointer; font-size: var(--step--1);
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.seg button .k { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; opacity: 0.75; margin-left: 4px; }
+.variant-note { font-size: var(--step--1); color: var(--muted); border-left: 2px solid var(--rule); padding-left: 10px; }
+
+.role-group { display: grid; gap: 6px; }
+.role-head { display: flex; align-items: center; gap: 8px; }
+.role-head h3 { font-size: var(--step-0); }
+.role-head .what { font-size: var(--step--1); color: var(--muted); }
+.choice {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 2px 10px; align-items: start;
+  text-align: left; cursor: pointer; width: 100%;
+  border: 1px solid var(--rule); border-radius: var(--radius); background: transparent; padding: 8px 10px;
+}
+.choice:hover { border-color: var(--muted); }
+.choice .sym { grid-row: span 2; margin-top: 2px; }
+.choice .l { font-weight: 600; }
+.choice .h { grid-column: 2 / 4; font-size: var(--step--1); color: var(--muted); }
+.choice .key { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
+.choice[aria-pressed="true"] { border-color: var(--role); background: color-mix(in srgb, var(--role) 9%, transparent); box-shadow: inset 3px 0 0 var(--role); }
+.choice[disabled] { opacity: 0.45; cursor: not-allowed; }
+.r-vedette { --role: var(--vedette); }
+.r-picket { --role: var(--picket); }
+.r-reserve { --role: var(--reserve); }
+.sym { color: var(--role); display: inline-block; flex: none; }
+.budget { display: flex; align-items: center; gap: 10px; font-size: var(--step--1); color: var(--muted); }
+.pips { display: flex; gap: 4px; }
+.pips i { width: 18px; height: 6px; border-radius: 2px; background: var(--rule); }
+.pips i.on { background: var(--ink); }
+
+/* Outcome */
+.verdict { display: grid; gap: 6px; }
+.verdict .v { font-family: var(--display); font-weight: 800; font-size: var(--step-3); letter-spacing: 0.02em; text-transform: uppercase; line-height: 1; }
+.verdict.bad .v { color: var(--harm); }
+.verdict.good .v { color: var(--safe); }
+.outcomes { display: grid; gap: 6px; }
+.outcome { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: var(--radius); border: 1px solid var(--rule); }
+.outcome .dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--muted); }
+.outcome.reached { background: var(--harm-bg); border-color: transparent; }
+.outcome.reached .dot { background: var(--harm); border-color: var(--harm); }
+.outcome.avoided .dot { border-color: var(--safe); }
+.delta { font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+.delta.worse { color: var(--harm); border: 1px solid var(--harm); }
+.delta.better { color: var(--safe); border: 1px solid var(--safe); }
+
+/* Line of march */
+.march { list-style: none; margin: 0; padding: 0; display: grid; }
+.step { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 0 12px; position: relative; padding-bottom: 14px; }
+.step::before { content: ""; position: absolute; left: 13px; top: 18px; bottom: 0; width: 2px; background: var(--ink); opacity: 0.85; }
+.step:last-child::before { display: none; }
+.step.skipped::before, .step.blocked::before { background: repeating-linear-gradient(var(--skip) 0 4px, transparent 4px 8px); opacity: 1; }
+.node { width: 28px; height: 28px; display: grid; place-items: center; z-index: 1; }
+.node i { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 3px solid var(--panel); box-shadow: 0 0 0 2px var(--ink); }
+.step.skipped .node i { background: var(--panel); box-shadow: 0 0 0 2px var(--skip); }
+.step.blocked .node i { border-radius: 2px; background: var(--picket); box-shadow: 0 0 0 2px var(--picket); }
+.step.harmful .node i { background: var(--harm); box-shadow: 0 0 0 2px var(--harm); }
+.step-body { display: grid; gap: 5px; padding-top: 3px; min-width: 0; }
+.step-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.step-head .name { font-weight: 600; }
+.step.skipped .step-head .name { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--skip); }
+.status { font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.step.blocked .status { color: var(--picket); }
+.diverge { font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); border: 1px dashed var(--accent); padding: 0 6px; border-radius: 3px; }
+.why { font-size: var(--step--1); color: var(--muted); }
+.acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.act { display: inline-flex; align-items: center; gap: 6px; font-size: var(--step--1); padding: 2px 8px 2px 6px; border-radius: 999px; border: 1px solid var(--role); color: var(--ink); }
+.facts { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.fact { font-family: var(--mono); font-size: 0.74rem; padding: 0 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.fact.plus::before { content: "+ "; color: var(--muted); }
+.fact.minus { text-decoration: line-through; color: var(--muted); }
+.fact.minus::before { content: "− "; }
+.fact.bad { background: var(--harm-bg); color: var(--harm); }
+
+/* Lower panels */
+section.lower { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding-block: 0 24px; }
+@media (max-width: 920px) { section.lower { grid-template-columns: minmax(0, 1fr); } }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.findings { display: grid; gap: 10px; }
+.finding { border: 1px solid var(--rule); border-radius: var(--radius); padding: 10px 12px; display: grid; gap: 6px; }
+.finding .line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.finding .plus { font-family: var(--display); font-weight: 800; font-size: var(--step-1); }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: var(--step--1); padding: 1px 8px 1px 5px; border: 1px solid var(--role); border-radius: 999px; }
+.finding .then { font-size: var(--step--1); }
+.finding .then b { color: var(--harm); font-weight: 600; }
+.btn { border: 1px solid var(--ink); background: var(--ink); color: var(--panel); border-radius: var(--radius); padding: 5px 12px; cursor: pointer; font-size: var(--step--1); font-weight: 600; justify-self: start; }
+.btn.ghost { background: transparent; color: var(--ink); }
+details summary { cursor: pointer; font-size: var(--step--1); color: var(--muted); }
+.empty { font-size: var(--step--1); color: var(--muted); border: 1px dashed var(--rule); border-radius: var(--radius); padding: 12px; }
+
+.table-scroll { overflow-x: auto; }
+table.matrix { border-collapse: collapse; font-size: var(--step--1); min-width: 100%; }
+.matrix th, .matrix td { border-bottom: 1px solid var(--rule); padding: 6px 8px; text-align: left; vertical-align: top; }
+.matrix thead th { font-weight: 600; color: var(--muted); font-size: 0.75rem; }
+.matrix thead th .k { display: block; font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.matrix tbody th { font-weight: 600; white-space: nowrap; }
+.cell { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cell .bar { display: inline-flex; gap: 2px; }
+.cell .bar i { width: 7px; height: 12px; border-radius: 1px; background: var(--rule); }
+.cell .bar i.on { background: var(--harm); }
+.cell.worse { color: var(--harm); font-weight: 500; }
+.cell.better { color: var(--safe); font-weight: 500; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.75rem; color: var(--muted); }
+
+.sources { display: grid; gap: 4px; font-size: var(--step--1); }
+.sources a { overflow-wrap: anywhere; }
+
+footer { padding-block: 10px 40px; font-size: var(--step--1); color: var(--muted); display: grid; gap: 6px; }
+footer .roles { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+footer .roles span { display: inline-flex; align-items: center; gap: 6px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .step { animation: rise 260ms ease both; animation-delay: calc(var(--i, 0) * 28ms); }
+  @keyframes rise { from { opacity: 0.35; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+}
+/* Phone: the replay sits far below the choices, so keep its verdict in view. */
+.mbar { display: none; }
+@media (max-width: 920px) {
+  .mbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--ink); color: var(--panel);
+    padding-top: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .mbar .v { font-family: var(--display); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; font-size: var(--step-1); line-height: 1.1; }
+  .mbar .n { font-size: var(--step--1); opacity: 0.8; }
+  .mbar button { border: 1px solid var(--panel); background: transparent; color: var(--panel); border-radius: var(--radius); padding: 5px 10px; font-size: var(--step--1); font-weight: 600; flex: none; cursor: pointer; }
+  footer { padding-bottom: 96px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="mast-row">
+      <h1 class="wordmark">MUST<span>E</span>R</h1>
+      <p class="thesis">You can't defend every step. <b>Pick a Watchline, replay a real incident, and see what the adversary can still reach.</b></p>
+    </div>
+  </header>
+  <nav class="rail" id="rail" aria-label="Scenarios"></nav>
+</div>
+
+<div class="wrap">
+  <main class="grid">
+    <aside class="panel watchline" id="watchline" aria-label="Your Watchline"></aside>
+    <section class="panel" id="outcome" aria-live="polite" aria-label="Replay"></section>
+  </main>
+  <section class="lower">
+    <div class="panel" id="search"></div>
+    <div class="panel" id="robust"></div>
+  </section>
+  <section class="lower" style="grid-template-columns: minmax(0,1fr);">
+    <div class="panel" id="about"></div>
+  </section>
+  <section class="lower" style="grid-template-columns: minmax(0,1fr);">
+    <div class="panel" id="survey">
+      <div class="panel-head"><h2>Across all scenarios</h2><span class="eyebrow">computing…</span></div>
+    </div>
+  </section>
+  <footer>
+    <div class="roles">
+      <span class="r-vedette"><svg class="sym" width="16" height="16"><use href="#sym-vedette"/></svg><b>Vedette</b> observes</span>
+      <span class="r-picket"><svg class="sym" width="16" height="16"><use href="#sym-picket"/></svg><b>Picket</b> blocks a step</span>
+      <span class="r-reserve"><svg class="sym" width="16" height="16"><use href="#sym-reserve"/></svg><b>Reserve</b> responds and recovers</span>
+    </div>
+    <p>Muster is a small incident-replay harness. Every replay on this page runs in your browser, on an engine checked against the Go engine on <span id="parity-count">every</span> replays, which cover every combination of defenses in every scenario. Scenarios are compressed abstractions, not forensic reconstructions. Source and scenario files: <a href="https://github.com/bfaber-centaur/muster" rel="noopener">github.com/bfaber-centaur/muster</a>.</p>
+  </footer>
+</div>
+
+<div class="mbar" id="mbar" aria-live="polite"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- Observation post: a triangle with a dot, after the map symbol. -->
+    <symbol id="sym-vedette" viewBox="0 0 16 16"><path d="M8 1.8 14.6 14H1.4Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="8" cy="10" r="1.7" fill="currentColor"/></symbol>
+    <!-- Obstacle: a barrier bar on two posts. -->
+    <symbol id="sym-picket" viewBox="0 0 16 16"><rect x="1" y="4.5" width="14" height="4" rx="0.8" fill="currentColor"/><rect x="3" y="8" width="2.2" height="6.5" fill="currentColor"/><rect x="10.8" y="8" width="2.2" height="6.5" fill="currentColor"/></symbol>
+    <!-- Reserve: a unit frame held back, with a return arrow. -->
+    <symbol id="sym-reserve" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5 9.6a3.2 3.2 0 1 0 1-4.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M4.2 4.2 6.4 5.4 5.2 7.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<script>
+/*__ENGINE__*/
+</script>
+<script>
+const BUNDLE = /*__LABS__*/null;
+const PARITY_REPLAYS = /*__PARITY__*/0;
+</script>
+<script>
+(function () {
+  "use strict";
+  const { Lab } = window.MusterEngine;
+  const labs = BUNDLE.labs.map((b) => new Lab(b));
+  const byId = new Map(labs.map((l) => [l.manifest.id, l]));
+
+  const ROLE = {
+    vedette: { name: "Vedettes", what: "observe" },
+    picket: { name: "Pickets", what: "block a step" },
+    reserve: { name: "Reserves", what: "respond and recover" },
+  };
+  const KIND = { "public-record": "public record", illustrative: "illustrative", synthetic: "synthetic" };
+  const VKIND = { "failed-attempt": "failed attempt", "alternative-branch": "alternative", perturbation: "perturbation" };
+
+  const S = { lab: null, trace: "baseline", selected: [], previous: null, current: null };
+  const cache = new Map();
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const sym = (role, size = 16) => `<svg class="sym" width="${size}" height="${size}" aria-hidden="true"><use href="#sym-${role}"/></svg>`;
+
+  const lab = () => S.lab;
+  const m = () => S.lab.manifest;
+  const choice = (key) => m().choices.find((c) => c.key === key);
+  const eventLabel = (id) => (m().events || {})[id] || id.replace(/-/g, " ");
+  const factLabel = (f) => (m().facts || {})[f] || f;
+  const adverseLabel = (f) => (m().adverse.find((o) => o.fact === f) || {}).label || factLabel(f);
+  const ownerOf = (controlID) => m().choices.find((c) => c.controls.includes(controlID));
+
+  function memo(key, fn) {
+    if (!cache.has(key)) cache.set(key, fn());
+    return cache.get(key);
+  }
+
+  // ---- Rail ----------------------------------------------------------------
+  function renderRail() {
+    $("rail").innerHTML = labs.map((l) => {
+      const mm = l.manifest;
+      return `<button class="lab-tab" type="button" id="tab-${esc(mm.id)}" data-lab="${esc(mm.id)}" aria-pressed="${S.lab === l}">
+        <span class="tags"><span class="tag">${esc(mm.domain)}</span><span class="tag kind-${esc(mm.kind)}">${esc(KIND[mm.kind] || mm.kind)}</span></span>
+        <span class="t">${esc(mm.title)}</span>
+      </button>`;
+    }).join("");
+  }
+
+  // ---- Watchline -----------------------------------------------------------
+  function renderWatchline() {
+    const mm = m();
+    const traces = lab().traces;
+    const cur = lab().trace(S.trace);
+    const budget = mm.budget || 0;
+
+    const groups = ["vedette", "picket", "reserve"].map((role) => {
+      const items = mm.choices.filter((c) => c.role === role);
+      if (!items.length) return "";
+      return `<div class="role-group r-${role}">
+        <div class="role-head">${sym(role)}<h3>${ROLE[role].name}</h3><span class="what">${ROLE[role].what}</span></div>
+        ${items.map((c) => {
+          const on = S.selected.includes(c.key);
+          const full = budget && !on && S.selected.length >= budget;
+          return `<button type="button" class="choice r-${role}" id="choice-${esc(c.key)}" data-choice="${esc(c.key)}" aria-pressed="${on}" ${full ? "disabled" : ""}>
+            ${sym(role, 18)}<span class="l">${esc(c.label)}</span><span class="key">${esc(c.key)}</span>
+            <span class="h">${esc(c.help || "")}</span>
+          </button>`;
+        }).join("")}
+      </div>`;
+    }).join("");
+
+    const presets = [{ label: "Clear", choices: [] }].concat(mm.presets || []);
+    $("watchline").innerHTML = `
+      <div class="lab-summary">
+        <span class="eyebrow">${esc(mm.domain)} · ${esc(KIND[mm.kind] || mm.kind)}</span>
+        <h2>${esc(mm.title)}</h2>
+        <p>${esc(mm.summary)}</p>
+        ${mm.note ? `<p class="note">${esc(mm.note)}</p>` : ""}
+      </div>
+      ${traces.length > 1 ? `<div class="lab-summary">
+        <span class="eyebrow">Which version of events</span>
+        <div class="seg" role="group" aria-label="Trace">${traces.map((t) =>
+          `<button type="button" id="trace-${esc(t.id)}" data-trace="${esc(t.id)}" aria-pressed="${t.id === cur.id}">${esc(t.label)}${t.kind ? `<span class="k">${esc(VKIND[t.kind] || t.kind)}</span>` : ""}</button>`).join("")}
+        </div>
+        ${cur.note ? `<p class="variant-note">${esc(cur.note)}</p>` : ""}
+      </div>` : ""}
+      <div class="lab-summary">
+        <span class="eyebrow">Presets</span>
+        <div class="seg" role="group" aria-label="Presets">${presets.map((p, i) =>
+          `<button type="button" id="preset-${i}" data-preset="${i}" aria-pressed="${sameSet(p.choices, S.selected)}">${esc(p.label)}</button>`).join("")}
+        </div>
+        ${(() => { const p = presets.find((p) => p.note && sameSet(p.choices, S.selected)); return p ? `<p class="variant-note">${esc(p.note)}</p>` : ""; })()}
+      </div>
+      ${budget ? `<div class="budget"><span class="pips">${Array.from({ length: budget }, (_, i) => `<i class="${i < S.selected.length ? "on" : ""}"></i>`).join("")}</span><span>${S.selected.length} of ${budget} defenses placed</span></div>` : ""}
+      ${groups}`;
+  }
+
+  function sameSet(a, b) {
+    return a.length === b.length && a.every((x) => b.includes(x));
+  }
+
+  // ---- Replay --------------------------------------------------------------
+  function verdict(run) {
+    const bad = run.harm.length > 0;
+    const acts = run.trace.flatMap((e) => e.controls.filter((c) => c.acted));
+    const saw = acts.some((c) => c.action === "observe");
+    const blocked = run.trace.some((e) => e.status === "blocked");
+    const responded = acts.some((c) => c.action === "respond");
+    if (bad) {
+      if (responded) return ["Harm despite response", "A Reserve acted, but at least one modeled harm was still reached."];
+      if (saw) return ["Seen, not stopped", "A Vedette noticed, but nothing in the Watchline stopped every path to harm."];
+      if (blocked) return ["Partly blocked", "A Picket stopped part of the incident; another path to harm survived."];
+      return ["Unseen and unstopped", "No defense acted before the modeled harm was reached."];
+    }
+    if (responded) return ["Responded and contained", "The Watchline noticed and a Reserve changed the outcome before harm."];
+    if (blocked) return ["Prevented", "A Picket stopped the incident before any modeled harm."];
+    if (saw) return ["Seen; no harm", "The run ended without modeled harm."];
+    return ["No harm", "The run ended without modeled harm and without defensive action."];
+  }
+
+  function replayNow(keepPrevious) {
+    const run = lab().run(S.trace, S.selected);
+    if (!keepPrevious) S.previous = S.current;
+    S.current = run;
+    renderWatchline();
+    renderOutcome();
+  }
+
+  function renderOutcome() {
+    const run = S.current;
+    const prev = S.previous;
+    const [title, explain] = verdict(run);
+    const prevHarm = prev ? new Set(prev.harm) : null;
+    const harm = new Set(run.harm);
+    const diverge = prev && prev.trace.length === run.trace.length && prev.trace.every((e, i) => e.id === run.trace[i].id)
+      ? window.MusterEngine.firstDivergence(prev, run) : "";
+    const adverseFacts = new Set(m().adverse.map((o) => o.fact));
+
+    const outcomes = m().adverse.map((o) => {
+      const reached = harm.has(o.fact);
+      let delta = "";
+      if (prevHarm && reached && !prevHarm.has(o.fact)) delta = `<span class="delta worse">newly reached</span>`;
+      if (prevHarm && !reached && prevHarm.has(o.fact)) delta = `<span class="delta better">now avoided</span>`;
+      return `<div class="outcome ${reached ? "reached" : "avoided"}"><span class="dot"></span><span>${esc(o.label)}</span>${delta}</div>`;
+    }).join("");
+
+    const steps = run.trace.map((e, i) => {
+      const added = e.after.filter((f) => !e.before.includes(f));
+      const removed = e.before.filter((f) => !e.after.includes(f));
+      const harmful = added.some((f) => adverseFacts.has(f));
+      const acted = e.controls.filter((c) => c.acted);
+      const owners = [];
+      for (const c of acted) {
+        const o = ownerOf(c.id);
+        const key = o ? o.key : c.id;
+        if (!owners.find((x) => x.key === key)) owners.push({ key, label: o ? o.label : c.id, role: o ? o.role : c.role || "reserve", stages: [] });
+        owners.find((x) => x.key === key).stages.push(c.action);
+      }
+      const waiting = e.controls.filter((c) => !c.acted && c.matched && (c.disposition === "waiting" || c.disposition === "suppressed"));
+      let status = { applied: "happened", blocked: "blocked", skipped: "did not happen" }[e.status];
+      let why = "";
+      if (e.status === "skipped") {
+        why = "Needed " + e.unsatisfied.map((c) => (c.Op === "present" ? factLabel(c.Fact) : "no " + factLabel(c.Fact))).map(esc).join(", ") + ".";
+      }
+      const stalled = waiting
+        .map((c) => {
+          const o = ownerOf(c.id);
+          if (!o || !S.selected.includes(o.key)) return "";
+          // Reasons come from the engine: "missing:F" / "present:F" for an
+          // unmet requirement, "F" / "missing:F" for a suppression.
+          const missing = c.reason.match(/^missing:(.*)$/);
+          const present = c.reason.match(/^present:(.*)$/);
+          if (c.disposition === "suppressed") {
+            const why = missing ? "no " + factLabel(missing[1]) : factLabel(c.reason);
+            return `${esc(o.label)} was suppressed (${esc(why)}).`;
+          }
+          const why = missing ? "no " + factLabel(missing[1]) : present ? factLabel(present[1]) + " already held" : factLabel(c.reason);
+          return `${esc(o.label)} could not act: ${esc(why)}.`;
+        })
+        .filter(Boolean);
+      const uniqueStalled = Array.from(new Set(stalled));
+      return `<li class="step ${e.status}${harmful ? " harmful" : ""}" style="--i:${i}">
+        <span class="node"><i></i></span>
+        <div class="step-body">
+          <div class="step-head"><span class="name">${esc(eventLabel(e.id))}</span><span class="status">${status}</span>${diverge === e.id ? `<span class="diverge">changed here</span>` : ""}</div>
+          ${why ? `<p class="why">${why}</p>` : ""}
+          ${owners.length ? `<div class="acts">${owners.map((o) => `<span class="act r-${esc(o.role)}">${sym(o.role, 14)}${esc(o.label)}</span>`).join("")}</div>` : ""}
+          ${uniqueStalled.length ? `<p class="why">${uniqueStalled.join(" ")}</p>` : ""}
+          ${added.length || removed.length ? `<div class="facts">${added.map((f) => `<span class="fact plus${adverseFacts.has(f) ? " bad" : ""}">${esc(factLabel(f))}</span>`).join("")}${removed.map((f) => `<span class="fact minus">${esc(factLabel(f))}</span>`).join("")}</div>` : ""}
+        </div>
+      </li>`;
+    }).join("");
+
+    $("mbar").innerHTML = `<div><div class="v">${esc(title)}</div><div class="n">${run.harm.length} of ${m().adverse.length} harms reached</div></div><button type="button" id="mbar-jump" data-jump="outcome">See replay</button>`;
+    $("outcome").innerHTML = `
+      <div class="verdict ${run.harm.length ? "bad" : "good"}">
+        <span class="eyebrow">Replay${S.selected.length ? " with " + S.selected.map(esc).join(" + ") : " with no added defense"}</span>
+        <span class="v">${esc(title)}</span>
+        <p class="muted">${esc(explain)}</p>
+      </div>
+      <div class="outcomes">${outcomes}</div>
+      <div class="panel-head"><h3>Line of march</h3>${prev ? `<span class="eyebrow">compared with your previous replay</span>` : ""}</div>
+      <ol class="march">${steps}</ol>`;
+  }
+
+  // ---- Search ----------------------------------------------------------------
+  function renderSearch() {
+    const res = memo(`s|${m().id}|${S.trace}`, () => lab().search(S.trace));
+    const worse = res.findings.filter((f) => f.kind === "worse");
+    const traded = res.findings.filter((f) => f.kind === "tradeoff");
+    const chip = (key) => {
+      const c = choice(key);
+      return `<span class="chip r-${esc(c.role)}">${sym(c.role, 13)}${esc(c.label)}</span>`;
+    };
+    const item = (f, i) => `<div class="finding">
+        <div class="line">${f.context.length ? f.context.map(chip).join("") : `<span class="muted">no defense</span>`}<span class="plus">+</span>${chip(f.added)}</div>
+        <p class="then">${f.kind === "worse" ? "Adding it newly reaches" : "Trades for"} <b>${f.new_harm.map(adverseLabel).map(esc).join("; ")}</b>${f.before.length ? `, on top of ${f.before.map(adverseLabel).map(esc).join("; ")}` : ""}.${f.divergence ? ` The runs part ways at “${esc(eventLabel(f.divergence))}”.` : ""}</p>
+        <button type="button" class="btn ghost" id="finding-${f.kind}-${i}" data-finding="${f.kind}:${i}">Replay this</button>
+      </div>`;
+    $("search").innerHTML = `
+      <div class="panel-head"><h2>Backfire search</h2><span class="eyebrow">${res.watchlines} Watchlines replayed</span></div>
+      <p class="muted">Every combination of the ${res.choices} defenses here, replayed against “${esc(lab().trace(S.trace).label)}”. Listed: the smallest cases where adding one more defense makes the outcome strictly worse.</p>
+      ${worse.length ? `<div class="findings">${worse.slice(0, 3).map(item).join("")}</div>${worse.length > 3 ? `<details><summary>${worse.length - 3} more minimal case${worse.length > 4 ? "s" : ""}</summary><div class="findings" style="margin-top:10px">${worse.slice(3).map((f, i) => item(f, i + 3)).join("")}</div></details>` : ""}`
+        : `<p class="empty">No defense here makes things worse when added. On this trace, ordinary dependency reasoning gives the same answer as replay.</p>`}
+      ${traded.length ? `<details ${worse.length ? "" : "open"}><summary>${traded.length} tradeoff${traded.length > 1 ? "s" : ""}: a defense that removes one harm and opens another</summary><div class="findings" style="margin-top:10px">${traded.map(item).join("")}</div></details>` : ""}`;
+    $("search").dataset.trace = S.trace;
+    S.findings = { worse, tradeoff: traded };
+  }
+
+  // ---- Robustness ------------------------------------------------------------
+  function renderRobust() {
+    const traces = lab().traces;
+    if (traces.length < 2) {
+      $("robust").innerHTML = `<div class="panel-head"><h2>Robustness</h2></div><p class="empty">This scenario has no alternative versions yet.</p>`;
+      return;
+    }
+    const res = memo(`r|${m().id}`, () => lab().robust());
+    const n = m().adverse.length;
+    const cell = (c) => {
+      const set = new Set(c.harm);
+      const bars = m().adverse.map((o) => `<i class="${set.has(o.fact) ? "on" : ""}" title="${esc(o.label)}"></i>`).join("");
+      const mark = { worse: "↑", better: "↓", different: "≠", same: "" }[c.change];
+      const label = c.harm.length ? c.harm.map(adverseLabel).join("; ") : "no modeled harm";
+      return `<span class="cell ${c.change}" title="${esc(label)}"><span class="bar">${bars}</span>${c.harm.length}/${n}${mark ? " " + mark : ""}</span>`;
+    };
+    const survived = res.findings.filter((f) => f.finding.kind === "worse");
+    $("robust").innerHTML = `
+      <div class="panel-head"><h2>Robustness</h2><span class="eyebrow">${traces.length - 1} alternative version${traces.length > 2 ? "s" : ""}</span></div>
+      <p class="muted">Does a Watchline that works on the recorded incident still work if events had gone differently, or if a defense that held had failed?</p>
+      <div class="table-scroll"><table class="matrix">
+        <thead><tr><th scope="col">Watchline</th>${traces.map((t) => `<th scope="col">${esc(t.label)}${t.kind ? `<span class="k">${esc(VKIND[t.kind] || t.kind)}</span>` : `<span class="k">baseline</span>`}</th>`).join("")}</tr></thead>
+        <tbody>${res.rows.map((r) => `<tr><th scope="row">${esc(r.label)}</th>${r.cells.map((c) => `<td>${cell(c)}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table></div>
+      <div class="legend"><span>Bars: modeled harms reached, out of ${n}</span><span class="cell worse">↑ worse than recorded</span><span class="cell better">↓ better</span><span>≠ different harms</span></div>
+      ${survived.length ? `<p class="muted">Backfires found on the recorded incident: ${survived.map((f) => {
+        const held = Object.entries(f.holds).filter(([, v]) => v).length;
+        return `${esc(choice(f.finding.added).label)} after ${f.finding.context.map((k) => esc(choice(k).label)).join(" + ") || "nothing"} survives in ${held} of ${traces.length - 1}`;
+      }).slice(0, 2).join("; ")}.</p>` : ""}`;
+  }
+
+  // ---- About -----------------------------------------------------------------
+  function renderAbout() {
+    const mm = m();
+    $("about").innerHTML = `
+      <div class="panel-head"><h2>Sources and limits</h2><span class="eyebrow">${esc(KIND[mm.kind] || mm.kind)}</span></div>
+      <p class="muted">${mm.kind === "public-record" ? "Each step traces to a published account, compressed to the transitions the counterfactuals need. Defenses marked as counterfactual were not necessarily deployed." : mm.kind === "illustrative" ? "A textbook mechanism from this field's literature, not one specific event. An educational model, not operational guidance." : "Deliberately constructed to test one mechanism."} Replay is one ordered pass: no probability, timing, adaptation, or cost. A known trace flatters well-placed blocks. You can test the attacks you imagined, not the one you failed to imagine.</p>
+      ${(mm.sources || []).length ? `<div class="sources">${mm.sources.map((s) => s.url ? `<a href="${esc(s.url)}" rel="noopener" target="_blank">${esc(s.title)}</a>` : `<span>${esc(s.title)}</span>`).join("")}</div>` : ""}`;
+  }
+
+  // ---- Survey ------------------------------------------------------------------
+  function renderSurvey() {
+    const rows = labs.map((l) => {
+      const base = memo(`s|${l.manifest.id}|baseline`, () => l.search("baseline"));
+      const worse = base.findings.filter((f) => f.kind === "worse").length;
+      const traded = base.findings.length - worse;
+      let emergent = 0, fragile = 0;
+      const presets = (l.manifest.presets || []).length;
+      if (l.traces.length > 1) {
+        const r = memo(`r|${l.manifest.id}`, () => l.robust());
+        for (const fs of Object.values(r.emergent)) emergent += fs.filter((f) => f.kind === "worse").length;
+        fragile = r.rows.slice(1).filter((row) => row.cells.some((c) => c.change !== "same")).length;
+      }
+      return { l, watchlines: base.watchlines, worse, any: worse + emergent, traded, fragile, presets, variants: l.traces.length - 1 };
+    });
+    const num = (n, cls) => `<span class="cell ${n ? cls : ""}">${n}</span>`;
+    $("survey").innerHTML = `
+      <div class="panel-head"><h2>Across all scenarios</h2><span class="eyebrow">${rows.reduce((a, r) => a + r.watchlines * (r.variants + 1), 0).toLocaleString("en-US")} Watchline replays</span></div>
+      <p class="muted">Backfires are the smallest cases where adding one defense strictly grows the set of harms. A preset is fragile when its outcome changes in at least one alternative version of events.</p>
+      <div class="table-scroll"><table class="matrix">
+        <thead><tr><th scope="col">Scenario</th><th scope="col">Field</th><th scope="col">Kind</th><th scope="col">Watchlines</th><th scope="col">Backfires<span class="k">recorded / any version</span></th><th scope="col">Tradeoffs<span class="k">recorded</span></th><th scope="col">Fragile presets</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr>
+          <th scope="row"><button type="button" class="btn ghost" style="border:0;padding:0;font-weight:600;text-align:left" id="survey-${esc(r.l.manifest.id)}" data-lab="${esc(r.l.manifest.id)}">${esc(r.l.manifest.title)}</button></th>
+          <td>${esc(r.l.manifest.domain)}</td><td>${esc(KIND[r.l.manifest.kind] || r.l.manifest.kind)}</td>
+          <td class="mono">${r.watchlines}</td>
+          <td>${num(r.worse, "worse")} / ${num(r.any, "worse")}</td>
+          <td>${num(r.traded, "")}</td>
+          <td class="mono">${r.variants ? `${r.fragile} of ${r.presets}` : "—"}</td>
+        </tr>`).join("")}</tbody>
+      </table></div>`;
+  }
+
+  // ---- Wiring ------------------------------------------------------------------
+  function selectLab(id, fromHash) {
+    const l = byId.get(id) || labs[0];
+    S.lab = l;
+    S.trace = "baseline";
+    S.previous = null;
+    S.current = null;
+    const first = (l.manifest.presets || [])[0];
+    S.selected = first ? first.choices.slice() : [];
+    renderRail();
+    const tab = document.getElementById("tab-" + l.manifest.id);
+    if (tab) tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    replayNow(true);
+    renderSearch();
+    renderRobust();
+    renderAbout();
+    if (!fromHash) {
+      try { history.replaceState(null, "", "#" + l.manifest.id); } catch (e) { /* frame may refuse */ }
+    }
+  }
+
+  document.addEventListener("click", (ev) => {
+    const t = ev.target.closest("button");
+    if (!t) return;
+    if (t.dataset.lab) {
+      selectLab(t.dataset.lab);
+      if (t.id.startsWith("survey-")) $("rail").scrollIntoView({ block: "start" });
+    }
+    else if (t.dataset.jump) $(t.dataset.jump).scrollIntoView({ block: "start" });
+    else if (t.dataset.choice) {
+      const k = t.dataset.choice;
+      S.selected = S.selected.includes(k) ? S.selected.filter((x) => x !== k) : S.selected.concat([k]);
+      S.selected.sort((a, b) => lab().keys.indexOf(a) - lab().keys.indexOf(b));
+      replayNow();
+    } else if (t.dataset.preset) {
+      const p = [{ choices: [] }].concat(m().presets || [])[+t.dataset.preset];
+      S.selected = p.choices.slice();
+      replayNow();
+    } else if (t.dataset.trace) {
+      S.trace = t.dataset.trace;
+      S.previous = null;
+      replayNow(true);
+      renderSearch();
+    } else if (t.dataset.finding) {
+      const [kind, i] = t.dataset.finding.split(":");
+      const f = S.findings[kind][+i];
+      S.selected = f.context.slice();
+      replayNow(true);
+      S.selected = f.context.concat([f.added]);
+      replayNow();
+      $("outcome").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    }
+  });
+
+  if (PARITY_REPLAYS) $("parity-count").textContent = PARITY_REPLAYS.toLocaleString("en-US");
+  const hash = (location.hash || "").slice(1);
+  selectLab(byId.has(hash) ? hash : labs[0].manifest.id, byId.has(hash));
+  setTimeout(renderSurvey, 50);
+})();
+</script>

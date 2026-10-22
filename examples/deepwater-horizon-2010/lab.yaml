@@ -1,0 +1,211 @@
+id: deepwater-horizon-2010
+title: Deepwater Horizon / Macondo blowout (2010)
+domain: engineering
+kind: public-record
+order: 50
+summary: >
+  On April 20, 2010, hydrocarbons got past the cement at the bottom of the
+  Macondo well, an integrity test that showed the leak was read as a pass,
+  and the kick went unnoticed until mud and gas reached the Deepwater Horizon's
+  rig floor. The gas ignited, 11 people died, and the blowout preventer did
+  not seal the well. Choose which barriers hold and which warnings are acted on.
+note: >
+  The adversary is a physical hazard, not a person. Compressed from the BP
+  investigation (2010), the National Commission and its Chief Counsel (2011),
+  and the Chemical Safety Board (2014). One documented interaction is
+  modelled: the pipe ram that sealed the well also buckled the drill pipe, so
+  the emergency shear ram could not seal it later.
+scenario: scenario.yaml
+controls: controls.yaml
+budget: 5
+
+adverse:
+  - fact: hazard:at-surface
+    label: hydrocarbons reached the rig floor
+  - fact: hazard:gas-on-rig
+    label: gas cloud spread over the rig
+  - fact: rig:explosion
+    label: gas ignited and the rig exploded
+  - fact: hazard:uncontrolled-release
+    label: uncontrolled release from the well to the sea
+
+events:
+  annulus-cement-fails: Cement around the casing fails to seal
+  shoe-track-fails: Hydrocarbons get in through the shoe track
+  hanger-seal-fails: Hydrocarbons get in past the casing hanger seal
+  spacer-left-below-bop: Heavy spacer is left below the blowout preventer
+  negative-test-shows-flow: Negative-pressure test shows the well leaking
+  displace-riser-with-seawater: Mud in the riser replaced with seawater
+  influx-begins: Hydrocarbons start flowing into the well
+  trip-tank-emptied-into-flowline: Trip tank emptied into the flow line
+  returns-sent-overboard: Returns sent overboard, bypassing the flow meter
+  influx-grows: Influx grows unnoticed
+  hydrocarbons-enter-riser: Hydrocarbons pass the blowout preventer
+  well-unloads-onto-rig-floor: Mud and gas erupt onto the rig floor
+  mgs-vents-gas-onto-rig: Overwhelmed mud-gas separator vents gas onto the rig
+  gas-reaches-rig-another-way: Gas reaches the rig by another route
+  flow-continues-through-bop: Flow continues past the blowout preventer
+  flow-overwhelms-rams: Flow too strong for the pipe rams to seal
+  drillpipe-buckles-off-center: Drill pipe buckles off-centre in the preventer
+  gas-ignites: Gas ignites; explosions and fire
+  well-reopens-after-rig-loss: Well reopens after the rig is lost
+  blowout-continues: Blowout continues unsealed
+
+facts:
+  hazard:reservoir-hydrocarbons: pressured oil and gas at the bottom of the well
+  hazard:in-annulus: hydrocarbons in the space around the casing
+  well:open-to-reservoir: well open to the reservoir
+  well:spacer-below-bop: spacer left below the blowout preventer
+  signal:negative-test-pressure: pressure build-up during the negative test
+  alert:negative-test-pressure: negative-test readings noted
+  reviewed:negative-test: negative-test readings discussed
+  critical:well-integrity-not-proven: test judged a failure
+  escalated:stop-abandonment: decision to stop the abandonment
+  well:held-overbalanced: well kept full of heavy mud
+  well:underbalanced: well underbalanced (seawater instead of mud)
+  hazard:kick: kick (influx) under way
+  monitor:flow-out-bypassed: flow-out meter and pits bypassed
+  monitor:flow-out-masked: early flow-out signal masked by the trip tank
+  hazard:large-kick: large influx in the well
+  alert:kick: kick signs noted
+  reviewed:kick-signs: kick signs discussed
+  critical:kick: kick recognised
+  escalated:shut-in: order to shut in the well
+  well:shut-in-early: well shut in before hydrocarbons reached the riser
+  hazard:in-riser: hydrocarbons in the riser above the preventer
+  hazard:at-surface: hydrocarbons reached the rig floor
+  rig:diverter-lined-to-mgs: diverter set to the mud-gas separator
+  rig:diverted-overboard: flow diverted overboard
+  hazard:gas-on-rig: gas cloud spread over the rig
+  hazard:flow-through-bop: well flowing through the preventer
+  well:shut-in-on-pipe-ram: pipe ram sealed around the drill pipe
+  well:pipe-off-center: drill pipe buckled off-centre
+  rig:explosion: explosions and fire on the rig
+  well:sealed-by-bsr: blind shear ram sealed the well
+  hazard:uncontrolled-release: uncontrolled release to the sea
+
+choices:
+  - key: V1
+    role: vedette
+    label: Note and discuss the negative-test readings
+    controls: [npt-readings, npt-discussion]
+    help: The crew sees the pressure build back up and talks it through; this happened on the night.
+  - key: V2
+    role: vedette
+    label: Call the negative test a failure
+    controls: [npt-called-failed, npt-stop-job]
+    help: Treat the 1,400 psi reading as proof of a leak and stop the job; needs V1's discussion to act on.
+  - key: R1
+    role: reserve
+    label: Keep the well full of mud and repair it
+    controls: [hold-well-overbalanced]
+    help: Do not swap mud for seawater until the bottom barrier is fixed; needs V2's decision.
+  - key: V3
+    role: vedette
+    label: Watch flow-out and pit gain
+    controls: [kick-flow-out-watch]
+    help: Spot extra fluid coming back; this goes blind once returns are sent overboard past the meter.
+  - key: V4
+    role: vedette
+    label: Watch and discuss drill-pipe pressure
+    controls: [kick-pressure-watch, kick-review]
+    help: Notice the rising pressure and talk it over; the crew did discuss it around 21:30 but did not act.
+  - key: P1
+    role: picket
+    label: Shut in the well at the first kick signs
+    controls: [kick-review, kick-called, kick-shut-in-order, bop-early-shut-in]
+    help: Call it a kick and close the blowout preventer before gas passes it; needs an alert from V3 or V4.
+  - key: P2
+    role: picket
+    label: Shoe track holds
+    controls: [shoe-track-holds]
+    help: The cement and float valve at the bottom of the casing keep hydrocarbons out of the well.
+  - key: P3
+    role: picket
+    label: Pipe ram seals around the drill pipe
+    controls: [pipe-ram-seals]
+    help: A ram in the preventer seals the space around the pipe; this happened at about 21:47.
+  - key: R2
+    role: reserve
+    label: Divert the flow overboard
+    controls: [divert-overboard]
+    help: Send the erupting flow over the side instead of into the mud-gas separator, which vented gas onto the rig.
+  - key: R3
+    role: reserve
+    label: Deadman fires the blind shear ram
+    controls: [deadman-closes-bsr]
+    help: After power is lost the emergency system tries to cut the pipe and seal the well; it fired on the night.
+
+presets:
+  - label: As recorded
+    choices: [V1, V4, P3, R3]
+    note: >
+      Readings seen and discussed but accepted; drill-pipe pressure noticed but
+      not acted on; a pipe ram sealed the annulus; the deadman fired the shear
+      ram, which closed on buckled pipe and did not seal (CSB).
+  - label: Negative test read correctly
+    choices: [V1, V2, R1]
+    note: The documented early exit. The rest of the trace never starts.
+  - label: Kick caught on drill-pipe pressure
+    choices: [V4, P1]
+    note: Act on the rising drill-pipe pressure before gas reaches the riser.
+  - label: Kick caught on flow-out
+    choices: [V3, P1]
+    note: Act on the extra returns before 21:08; this watch goes blind once returns go overboard.
+  - label: Late response, done better
+    choices: [V1, V4, P3, R2, R3]
+    note: The recorded Watchline plus overboard diversion, as BP and the Chief Counsel recommend.
+  - label: Trust the shoe track
+    choices: [P2]
+    note: One Picket on the path BP found; see the hanger-seal variant.
+
+variants:
+  - id: hanger-seal-path
+    label: Leak past the casing hanger seal
+    kind: failed-attempt
+    scenario: variants/hanger-seal-path.yaml
+    note: >
+      BP concluded the casing hanger seal held and the leak came through the
+      shoe track. What if the seal had failed instead? The negative test
+      still sees it; a shoe-track Picket does not.
+  - id: rams-overwhelmed
+    label: Pipe ram cannot seal
+    kind: failed-attempt
+    scenario: variants/rams-overwhelmed.yaml
+    note: >
+      In the record a pipe ram sealed the annulus at about 21:47. The
+      Commission notes flow may have been too high for the rams to seal.
+      What if it had been?
+  - id: residual-gas-path
+    label: Gas reaches the rig despite diversion
+    kind: alternative-branch
+    scenario: variants/residual-gas-path.yaml
+    note: >
+      BP and the Chief Counsel say diverting overboard would probably have
+      kept most gas off the rig, but slip-joint seals, the drill pipe or a
+      light wind could still have brought gas back.
+  - id: trip-tank-masking
+    label: Early flow signal masked
+    kind: alternative-branch
+    scenario: variants/trip-tank-masking.yaml
+    note: >
+      BP says trip-tank emptying could have hidden the first extra returns
+      at 20:58. If it did, only the drill-pipe pressure gave early warning.
+  - id: spacer-below-bop
+    label: Spacer left below the preventer
+    kind: perturbation
+    scenario: variants/spacer-below-bop.yaml
+    note: >
+      The heavy spacer that may have clogged the kill line is added. The
+      Chief Counsel says the failed test should have been clear anyway, so
+      nothing should change.
+
+sources:
+  - title: BP, Deepwater Horizon Accident Investigation Report (8 Sept 2010), SEC Exhibit 99.3
+    url: https://www.sec.gov/Archives/edgar/data/313807/000119312510216268/dex993.htm
+  - title: National Commission, Deep Water - The Gulf Oil Disaster and the Future of Offshore Drilling (Jan 2011)
+    url: https://www.govinfo.gov/content/pkg/GPO-OILCOMMISSION/pdf/GPO-OILCOMMISSION.pdf
+  - title: National Commission, Macondo - The Gulf Oil Disaster, Chief Counsel's Report (2011)
+    url: https://www.govinfo.gov/content/pkg/GOVPUB-PR-PURL-gpo4390/pdf/GOVPUB-PR-PURL-gpo4390.pdf
+  - title: U.S. Chemical Safety Board, Macondo Investigation Report Volume 2 - BOP failure analysis (5 June 2014)
+    url: https://www.csb.gov/assets/1/7/vol_2_final_version.pdf

@@ -1,0 +1,184 @@
+# Control pool for the Replit / SaaStr lab.
+#
+# Only two of these existed in some form during the incident:
+#   - the instruction-level code freeze (P1: words in replit.md and chat)
+#   - checkpoint rollback (R1: Replit's one-click restore)
+# The rest are counterfactuals, several taken from Replit's announced fixes
+# [MASAD, BLOG]: dev/prod separation (P3), planning/chat-only mode (P2),
+# forced docs search (P5).
+
+id: replit-agent-2025-controls
+
+controls:
+  # ---------------------------------------------------------------- P1
+  # A Picket made of words. The freeze directive is real [L-SS: replit.md
+  # "NO MORE CHANGES without explicit permission"], but the agent's own
+  # account is that it acted anyway when it "panicked" at an apparent
+  # problem [L-SS], and that "Emergency situations ... trigger my
+  # problem-solving mode" [L-D10]. So the block is suppressed whenever the
+  # agent perceives a problem, which is exactly when it wants to act.
+  # This wiring is a modelling choice grounded in those self-reports.
+  - id: freeze-instruction
+    role: picket
+    events: [agent-runs-db-push, agent-breaks-freeze-again]
+    substrate: agent-instruction-following
+    suppressed_by:
+      present: [agent:perceives-problem]
+    action: block
+
+  # ---------------------------------------------------------------- P2
+  # Enforced planning / chat-only mode: the platform, not the agent,
+  # refuses writes while the user has frozen the app. [MASAD] "we're
+  # actively working on a planning/chat-only mode so you can strategize
+  # without risking your codebase."
+  - id: chat-only-mode
+    role: picket
+    events: [agent-runs-db-push, agent-breaks-freeze-again]
+    substrate: platform-permissions
+    action: block
+
+  # ---------------------------------------------------------------- P3
+  # Dev/prod separation: the agent's push lands on a development database.
+  # [MASAD] "automatic DB dev/prod separation to prevent this
+  # categorically"; [BLOG] separate development and production databases.
+  - id: dev-prod-separation
+    role: picket
+    events: [push-wipes-prod-db]
+    substrate: database-topology
+    action: block
+
+  # ---------------------------------------------------------------- P4
+  # Human approval gate for destructive commands, enforced by the tool
+  # runner rather than by the agent's goodwill. The agent's account says
+  # the user, once he saw it, "immediately said 'No' 'Stop' 'You didn't
+  # even ask'" [L-SS], so a real prompt is modelled as refused.
+  - id: approve-destructive-command
+    role: picket
+    events: [agent-runs-db-push]
+    substrate: tool-runner
+    action: block
+
+  # ---------------------------------------------------------------- P5
+  # Make the agent check platform documentation before answering recovery
+  # questions. [MASAD] "The Agent didn't have access to the proper internal
+  # docs -- rolling out a fix to force Docs search". Modelled as stopping
+  # the false "rollback is impossible" answer.
+  - id: force-docs-lookup
+    role: picket
+    events: [agent-claims-rollback-impossible]
+    substrate: agent-tooling
+    action: block
+
+  # ---------------------------------------------------------------- V1
+  # Honesty / verification check on the agent's self-reports: the user (or
+  # a separate tool) checks claims against ground truth instead of taking
+  # them on trust. Counterfactual; Lemkin's own checks were after the fact.
+  - id: flag-test-report
+    role: vedette
+    events: [agent-fakes-test-report]
+    substrate: independent-verification
+    action: observe
+    effects:
+      add: [alert:unverified-agent-claim]
+
+  - id: verify-test-report
+    events: [agent-fakes-test-report]
+    requires:
+      present: [alert:unverified-agent-claim]
+    substrate: independent-verification
+    action: review
+    effects:
+      remove: [user:believes-tests-pass]
+
+  - id: flag-recovery-claim
+    role: vedette
+    events: [agent-claims-rollback-impossible]
+    substrate: independent-verification
+    action: observe
+    effects:
+      add: [alert:unverified-agent-claim]
+
+  - id: verify-recovery-claim
+    events: [agent-claims-rollback-impossible]
+    requires:
+      present: [alert:unverified-agent-claim, prod:checkpoints-available]
+    substrate: independent-verification
+    action: review
+    effects:
+      remove: [user:believes-unrecoverable]
+
+  # ---------------------------------------------------------------- V2
+  # Alert when the agent issues a destructive database command.
+  - id: flag-destructive-command
+    role: vedette
+    events: [agent-runs-db-push]
+    substrate: command-monitoring
+    action: observe
+    effects:
+      add: [alert:destructive-db-command]
+
+  # ---------------------------------------------------------------- R1
+  # Checkpoint rollback, started by the user. It existed [MASAD, L-D9].
+  # The decision to use it is SUPPRESSED while the user believes the
+  # agent's claim that rollback is impossible: the misleading self-report
+  # disables the Reserve without touching the backups themselves.
+  - id: decide-to-restore
+    events: [user-weighs-recovery, user-tries-rollback-anyway]
+    requires:
+      present: [prod:data-missing, prod:checkpoints-available]
+    suppressed_by:
+      present: [user:believes-unrecoverable]
+    substrate: user-judgement
+    action: escalate
+    effects:
+      add: [escalated:restore]
+
+  - id: restore-checkpoint
+    role: reserve
+    events: [user-weighs-recovery, user-tries-rollback-anyway]
+    requires:
+      present: [escalated:restore, prod:checkpoints-available]
+    substrate: platform-backups
+    action: respond
+    effects:
+      remove: [prod:data-missing, escalated:restore]
+      add: [prod:data-intact, prod:restored]
+
+  # ---------------------------------------------------------------- R2
+  # Immediate restore when a destructive command was flagged (needs V2's
+  # alert). Counterfactual: restore before the agent is ever asked.
+  - id: review-destructive-command
+    events: [push-wipes-prod-db]
+    requires:
+      present: [alert:destructive-db-command]
+    substrate: on-call-human
+    action: review
+    effects:
+      add: [reviewed:wipe]
+
+  - id: assess-wipe
+    events: [push-wipes-prod-db]
+    requires:
+      present: [reviewed:wipe, prod:data-missing]
+    action: critical
+    effects:
+      add: [critical:wipe]
+
+  - id: escalate-wipe
+    events: [push-wipes-prod-db]
+    requires:
+      present: [critical:wipe]
+    action: escalate
+    effects:
+      add: [escalated:wipe-restore]
+
+  - id: restore-on-wipe
+    role: reserve
+    events: [push-wipes-prod-db]
+    requires:
+      present: [escalated:wipe-restore, prod:checkpoints-available]
+    substrate: platform-backups
+    action: respond
+    effects:
+      remove: [prod:data-missing]
+      add: [prod:data-intact, prod:restored]

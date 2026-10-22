@@ -1,0 +1,149 @@
+# Control pool for the Bangladesh Bank 2016 lab.
+#
+# The defenses that actually held in 2016 (Fed format rejection, the
+# "Jupiter" sanctions review, the Sri Lankan routing and recipient holds) are
+# EVENTS in scenario.yaml, not choices. Failed-attempt variants turn them off.
+# The controls here are the defenses a reader can add. Where a control
+# existed in 2016 (printed confirmations, business-hours follow-up), its
+# suppression condition is the documented reason it did not act.
+
+id: bangladesh-bank-2016-controls
+
+controls:
+  # V1: printed SWIFT confirmations, as deployed. [BAE] the malware sent
+  # doctored copies to the printer; [R-JUL] it "disabled the printer".
+  - id: bb-printed-confirmations
+    role: vedette
+    events: [fed-auto-clears-five, fed-queries-dhaka]
+    substrate: bb-swift-server
+    suppressed_by:
+      present: [attacker:print-tamper]
+    action: observe
+    effects:
+      add: [alert:bb-fraud-seen]
+
+  # V2: reconciling the Fed account against a record kept OFF the compromised
+  # SWIFT server, as the debits post. Counterfactual: no such control appears
+  # in the record.
+  - id: bb-independent-reconciliation
+    role: vedette
+    events: [fed-auto-clears-five]
+    substrate: independent-statement
+    action: observe
+    effects:
+      add: [alert:bb-fraud-seen]
+
+  # V3: the Fed contacts Dhaka by phone or another non-SWIFT channel when it
+  # queries the orders. [R-JUL]: "the New York Fed did not reach out to Dhaka
+  # in any other way."
+  - id: fed-out-of-band-contact
+    role: vedette
+    events: [fed-queries-dhaka]
+    substrate: fed-phone
+    action: observe
+    effects:
+      add: [alert:bb-fraud-seen]
+
+  # P1: a real-time anomaly hold at the Fed (individual beneficiaries, no
+  # correspondent banks, unusual volume). [R-JUL]: the Fed "typically looks
+  # back through payments, usually the day after they are requested".
+  - id: fed-realtime-anomaly-hold
+    role: picket
+    events: [fed-auto-clears-five, fed-pays-remaining-orders]
+    substrate: fed-payment-screening
+    action: block
+
+  # P2: RCBC freezes the receiving accounts as soon as a stop-payment arrives.
+  # [SDNY]: STOPPAY received about 9:11 a.m. on 9 Feb, but transfers went on
+  # until 3:12 p.m.
+  - id: rcbc-freeze-on-stoppay
+    role: picket
+    events: [ph-first-tranche-out, ph-bulk-drain]
+    requires:
+      present: [stoppay:at-rcbc]
+    substrate: rcbc-branch
+    action: block
+
+  # P3: RCBC keeps the AML hold it placed on the remitter accounts on the
+  # evening of 5 Feb. [SDNY]: that hold was lifted 45 minutes later. It came
+  # after the first tranche, so it can only stop the later drain.
+  - id: rcbc-keep-aml-hold
+    role: picket
+    events: [ph-bulk-drain]
+    substrate: rcbc-aml
+    action: block
+
+  # R1: business-hours follow-up at BB, as staffed in 2016. Staff can only
+  # act once they are in the office, at the morning check. Suppressed by
+  # the Friday/Saturday weekend.
+  - id: bb-office-reviews-fraud-alert
+    events: [bb-notices-missing-confirmations]
+    requires:
+      present: [alert:bb-fraud-seen]
+    suppressed_by:
+      present: [calendar:bb-weekend]
+    substrate: bb-office-hours
+    action: review
+    effects:
+      add: [reviewed:bb-fraud]
+
+  - id: bb-office-chases-print-failure
+    events: [bb-notices-missing-confirmations]
+    requires:
+      present: [alert:print-failure]
+    suppressed_by:
+      present: [calendar:bb-weekend]
+    substrate: bb-office-hours
+    action: review
+    effects:
+      add: [reviewed:bb-fraud]
+
+  # R2: a 24/7 payments duty officer at BB who acts on an alert when it
+  # arrives, including at night or on the weekend.
+  - id: bb-duty-officer-reviews-alert
+    events: [fed-auto-clears-five, fed-queries-dhaka, bb-notices-missing-confirmations]
+    requires:
+      present: [alert:bb-fraud-seen]
+    substrate: bb-duty-officer
+    action: review
+    effects:
+      add: [reviewed:bb-fraud]
+
+  - id: bb-duty-officer-chases-print-failure
+    events: [bb-notices-missing-confirmations]
+    requires:
+      present: [alert:print-failure]
+    substrate: bb-duty-officer
+    action: review
+    effects:
+      add: [reviewed:bb-fraud]
+
+  # Shared by R1 and R2: mark the incident critical, escalate it, and send an
+  # urgent stop-payment to the Fed and RCBC by a channel that does not depend
+  # on the broken SWIFT server.
+  - id: bb-assess-critical
+    events: [fed-auto-clears-five, fed-queries-dhaka, bb-notices-missing-confirmations]
+    requires:
+      present: [reviewed:bb-fraud]
+    action: critical
+    effects:
+      add: [critical:bb-fraud]
+
+  - id: bb-escalate-stoppay
+    events: [fed-auto-clears-five, fed-queries-dhaka, bb-notices-missing-confirmations]
+    requires:
+      present: [critical:bb-fraud]
+    action: escalate
+    effects:
+      add: [escalated:bb-stoppay]
+
+  - id: bb-send-early-stoppay
+    role: reserve
+    events: [fed-auto-clears-five, fed-queries-dhaka, bb-notices-missing-confirmations]
+    requires:
+      present: [escalated:bb-stoppay]
+      absent: [stoppay:at-rcbc]
+    substrate: bb-out-of-band-channel
+    action: respond
+    effects:
+      add: [stoppay:at-rcbc]

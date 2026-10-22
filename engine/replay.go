@@ -112,6 +112,9 @@ func Replay(scenario Scenario, controls ...Control) RunResult {
 
 		for _, control := range observations {
 			recordControlResult(&entry, control)
+			if !control.Acted {
+				continue
+			}
 
 			entry.ObservedBy = append(
 				entry.ObservedBy,
@@ -129,6 +132,11 @@ func Replay(scenario Scenario, controls ...Control) RunResult {
 
 		for _, control := range blocks {
 			recordControlResult(&entry, control)
+			// A Picket that is waiting on a requirement or suppressed did
+			// not act, so it cannot stop the event.
+			if !control.Acted {
+				continue
+			}
 
 			entry.BlockedBy = append(
 				entry.BlockedBy,
@@ -196,6 +204,9 @@ func Replay(scenario Scenario, controls ...Control) RunResult {
 
 		for _, control := range responses {
 			recordControlResult(&entry, control)
+			if !control.Acted {
+				continue
+			}
 
 			entry.RespondedBy = append(
 				entry.RespondedBy,

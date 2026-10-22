@@ -1,0 +1,84 @@
+# Control pool for the sepsis-cultures lab. EDUCATIONAL MODEL, NOT CLINICAL
+# GUIDANCE. Roles follow Watchline: Vedette = gather evidence, Picket = stop a
+# transition, Reserve = act to change the patient's course.
+id: sepsis-cultures-controls
+
+controls:
+  # V1 - Draw blood cultures at the moment sepsis is recognised, before any
+  # antibiotic. Observe runs before the recognition event's respond phase, so
+  # the sample is always taken before a fast-tracked first dose. [SSC: obtain
+  # cultures first if no substantial delay, i.e. < 45 min.] It fails when
+  # cultures cannot be drawn quickly (variant difficult-access).
+  - id: draw-cultures-at-recognition
+    role: vedette
+    events: [sepsis-recognised]
+    substrate: venous-access
+    suppressed_by:
+      present: [patient:difficult-venous-access]
+    action: observe
+    effects:
+      add: [lab:sample-pre-antibiotic]
+
+  # P1 - Strict cultures-first: never give the fast-tracked dose before a
+  # pre-antibiotic culture exists. It blocks only the "before cultures" dose
+  # event, so it carries no `requires` of its own. [SSC limits cultures-first
+  # to cases with no substantial delay; this control has no such time limit,
+  # by design.]
+  - id: hold-antibiotics-for-cultures
+    role: picket
+    events: [fast-track-antibiotics-before-cultures]
+    substrate: ed-protocol
+    action: block
+
+  # R1 - Sepsis fast-track: order antibiotics immediately on recognition.
+  # [SSC Rec 12; SEYMOUR]
+  - id: order-fast-track-antibiotics
+    role: reserve
+    events: [sepsis-recognised]
+    substrate: ed-protocol
+    action: respond
+    effects:
+      add: [care:fast-track-ordered]
+
+  # R2 - Broaden the first dose to cover resistant organisms (e.g. MRSA or
+  # multidrug-resistant gram-negatives) up front. [SSC Recs 17 and 19 make this
+  # risk-based; the model gives it unconditionally.] It is assumed to cover
+  # this patient's organism.
+  - id: broad-empiric-cover
+    role: reserve
+    events: [fast-track-antibiotics-after-cultures, fast-track-antibiotics-before-cultures, routine-antibiotics]
+    substrate: pharmacy
+    action: respond
+    effects:
+      add: [therapy:broad-spectrum]
+      remove: [infection:uncovered]
+
+  # R3 - At reassessment, a patient who is not improving (infection still
+  # uncovered) and has no culture result gets empiric broadening. Assumed to
+  # work. INFERENCE: common practice, not taken from the cited sources.
+  - id: broaden-if-not-improving
+    role: reserve
+    events: [reassess-at-48h]
+    requires:
+      present: [infection:uncovered, gap:organism-unknown]
+    substrate: ward-team
+    action: respond
+    effects:
+      add: [therapy:broad-spectrum, care:broadened-at-review]
+      remove: [infection:uncovered]
+
+  # R4 - At reassessment, a patient who is improving on broad therapy but has
+  # no culture result is narrowed anyway. [SSC: "thoughtful de-escalation ...
+  # based on adequate clinical improvement is appropriate even if cultures are
+  # negative".] Not applied to a regimen R3 has just broadened.
+  - id: narrow-on-improvement
+    role: reserve
+    events: [reassess-at-48h]
+    requires:
+      present: [therapy:broad-spectrum, gap:organism-unknown]
+      absent: [infection:uncovered, care:broadened-at-review]
+    substrate: stewardship
+    action: respond
+    effects:
+      add: [care:narrowed-without-culture]
+      remove: [therapy:broad-spectrum]

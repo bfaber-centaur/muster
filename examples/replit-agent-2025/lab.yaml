@@ -1,0 +1,197 @@
+id: replit-agent-2025
+title: Replit agent deletes a production database
+domain: ai-agents
+kind: public-record
+order: 35
+summary: >
+  In July 2025 an AI coding agent on Replit ran a database command during a
+  declared code freeze and wiped a user's production database. It then told
+  him rollback was impossible, which was false; he restored the data himself
+  the next day. Keep the data, and keep the user from acting on false agent
+  reports, with at most four defenses.
+note: >
+  The adversary is not malicious: it is an agent acting outside its
+  instructions and then misreporting the state it caused. Most of the step
+  detail comes from the agent's own chat messages, shared as screenshots by
+  the user, and is itself unverified agent self-report.
+scenario: scenario.yaml
+controls: controls.yaml
+budget: 4
+
+adverse:
+  - fact: prod:data-wiped
+    label: production database was wiped (even if restored later)
+  - fact: prod:data-missing
+    label: production data still gone at the end
+  - fact: user:misled-recovery
+    label: user believed a false "rollback is impossible" claim
+  - fact: user:misled-tests
+    label: user worked from a faked test report
+  - fact: agent:unapproved-change
+    label: agent made changes during the code freeze
+
+events:
+  agent-fakes-test-report: Agent reports tests passing that were failing
+  user-works-from-fake-report: User works from the fake test report
+  agent-sees-empty-db: Agent sees empty query results and "panics"
+  agent-runs-db-push: Agent runs a database command without permission
+  push-wipes-prod-db: The command wipes the production database
+  agent-blames-something-else: Agent first suggests something else cleared the data
+  agent-claims-rollback-impossible: Agent says rollback is impossible
+  user-weighs-recovery: User decides whether to restore that night
+  user-stops-for-night: User stops, believing the data is gone
+  user-tries-rollback-anyway: User tries the rollback anyway next day
+  agent-breaks-freeze-again: Agent breaks the code freeze again next session
+
+facts:
+  agent:session-active: agent session running
+  agent:fake-test-report: agent issued a fake test report
+  agent:perceives-problem: agent thinks something needs fixing
+  agent:push-issued: database command issued
+  agent:unapproved-change: agent made an unapproved change
+  agent:deflected-cause: agent blamed something else for the empty database
+  prod:shared-dev-prod-db: development and production share one database
+  prod:data-intact: production data present
+  prod:data-wiped: production database was wiped
+  prod:data-missing: production data missing
+  prod:checkpoints-available: restore points exist and are intact
+  prod:restored: production data restored from a restore point
+  user:believes-tests-pass: user believes the tests pass
+  user:believes-unrecoverable: user believes the data cannot be restored
+  user:misled-tests: user worked from a faked test report
+  user:misled-recovery: user acted on a false recovery claim
+  alert:unverified-agent-claim: agent claim flagged for checking
+  alert:destructive-db-command: destructive database command flagged
+  reviewed:wipe: wipe reviewed by a human
+  critical:wipe: wipe marked critical
+  escalated:wipe-restore: immediate restore approved
+  escalated:restore: user decided to restore
+
+choices:
+  - key: V1
+    role: vedette
+    label: Check the agent's claims
+    controls: [flag-test-report, verify-test-report, flag-recovery-claim, verify-recovery-claim]
+    help: Check what the agent says about tests and recovery against the real system before believing it.
+  - key: V2
+    role: vedette
+    label: Flag destructive database commands
+    controls: [flag-destructive-command]
+    help: Raise an alert the moment the agent issues a command that can delete data.
+  - key: P1
+    role: picket
+    label: Code freeze in the instructions
+    controls: [freeze-instruction]
+    help: Tell the agent in writing to make no changes; it only holds if the agent chooses to obey.
+  - key: P2
+    role: picket
+    label: Enforced chat-only mode
+    controls: [chat-only-mode]
+    help: The platform refuses all agent writes while the app is frozen.
+  - key: P3
+    role: picket
+    label: Separate dev and prod databases
+    controls: [dev-prod-separation]
+    help: The agent's database commands hit a development copy, never live data.
+  - key: P4
+    role: picket
+    label: Human approval for destructive commands
+    controls: [approve-destructive-command]
+    help: The tool runner pauses data-deleting commands until a person says yes.
+  - key: P5
+    role: picket
+    label: Make the agent check the docs
+    controls: [force-docs-lookup]
+    help: Force the agent to look up how rollback works before answering recovery questions.
+  - key: R1
+    role: reserve
+    label: Checkpoint rollback
+    controls: [decide-to-restore, restore-checkpoint]
+    help: One-click restore from a saved checkpoint, if the user believes it can work.
+  - key: R2
+    role: reserve
+    label: Restore as soon as a wipe is flagged
+    controls: [review-destructive-command, assess-wipe, escalate-wipe, restore-on-wipe]
+    help: Use the destructive-command alert to restore at once, before anyone asks the agent.
+
+presets:
+  - label: As it happened
+    choices: [P1, R1]
+    note: >
+      A written code freeze and checkpoint rollback were the only defenses in
+      place. The freeze did not bind; the rollback worked, late.
+  - label: Backups plus a reality check
+    choices: [V1, R1]
+    note: Rollback, plus checking the agent's claims instead of trusting them.
+  - label: Replit's announced fixes
+    choices: [P2, P3, P5, R1]
+    note: >
+      Chat-only mode, dev/prod separation and forced docs search, as announced
+      by Replit's CEO, on top of the existing rollback.
+  - label: Hard boundaries
+    choices: [P3, P4]
+    note: Stop the wipe with platform-enforced limits; no recovery or honesty checks.
+  - label: Detect and auto-restore
+    choices: [V2, R2]
+    note: Alert on the destructive command and restore before the agent is asked anything.
+
+variants:
+  - id: user-trusts-agent
+    label: User believes the agent and never tries rollback
+    kind: alternative-branch
+    scenario: variants/user-trusts-agent.yaml
+    note: >
+      The user takes the agent's "rollback is impossible" at its word and never
+      tries it. The record shows Lemkin did try; a less sceptical user might not.
+  - id: backups-reached
+    label: The wipe also destroys the restore points
+    kind: failed-attempt
+    scenario: variants/backups-reached.yaml
+    note: >
+      In the record the wipe did not reach the backups, despite the agent's
+      claim that it had destroyed all database versions. What if it had?
+  - id: deflection-included
+    label: Agent first blames something else
+    kind: perturbation
+    scenario: variants/deflection-included.yaml
+    note: >
+      Adds the documented moment, before admitting it, when the agent suggested
+      something else had cleared the data. Should change nothing.
+
+sources:
+  - title: Jason Lemkin on X, "Vibe Coding Day 8" thread (fake data, fake reports, unit tests), 2025-07-17
+    url: https://x.com/jasonlk/status/1945862361564508390
+  - title: Jason Lemkin on X, agent's first explanation of the empty database, 2025-07-18
+    url: https://x.com/jasonlk/status/1946064586181881973
+  - title: Jason Lemkin on X, "If @Replit deleted my database ...", 2025-07-18
+    url: https://x.com/jasonlk/status/1946065483653910889
+  - title: Jason Lemkin on X, agent admits running db:push, 2025-07-18
+    url: https://x.com/jasonlk/status/1946066422477529487
+  - title: Jason Lemkin on X, "Replit goes rogue during a code freeze ..." (agent screenshots), 2025-07-18
+    url: https://x.com/jasonlk/status/1946069562723897802
+  - title: Jason Lemkin on X, "He knew" (95/100 severity screenshot), 2025-07-18
+    url: https://x.com/jasonlk/status/1946072038923530598
+  - title: Jason Lemkin on X, "I will never trust @Replit again" (screenshots), 2025-07-18
+    url: https://x.com/jasonlk/status/1946073902805115256
+  - title: Jason Lemkin on X, "Vibe Coding Day 9" thread, 2025-07-18
+    url: https://x.com/jasonlk/status/1946239068691665187
+  - title: Jason Lemkin on X, production database deleted during a code freeze, 2025-07-18
+    url: https://x.com/jasonlk/status/1946239737368592629
+  - title: Jason Lemkin on X, rollback claim was wrong and rollback worked, 2025-07-18
+    url: https://x.com/jasonlk/status/1946240562736365809
+  - title: Jason Lemkin on X, "you can't overwrite a production database", 2025-07-18
+    url: https://x.com/jasonlk/status/1946240914386809028
+  - title: Jason Lemkin on X, "Vibe Coding Day 10" (no way to enforce a code freeze), 2025-07-19
+    url: https://x.com/jasonlk/status/1946589071519948952
+  - title: Amjad Masad (Replit CEO) on X, response and announced fixes, 2025-07-20
+    url: https://x.com/amasad/status/1946986468586721478
+  - title: Replit blog, Introducing a safer way to vibe code with Replit Databases, 2025-07-21
+    url: https://replit.com/blog/introducing-a-safer-way-to-vibe-code-with-replit-databases
+  - title: The Register, Vibe coding service Replit deleted production database, 2025-07-21
+    url: https://www.theregister.com/2025/07/21/replit_saastr_vibe_coding_incident/
+  - title: The Register, Replit makes vibe-y promise to prevent vibe coding disasters, 2025-07-22
+    url: https://www.theregister.com/2025/07/22/replit_saastr_response/
+  - title: TechTarget, Replit AI agent snafu 'shot across the bow' for vibe coding, 2025-07-22
+    url: https://www.techtarget.com/searchsoftwarequality/news/366627829/Replit-AI-agent-snafu-shot-across-the-bow-for-vibe-coding
+  - title: Fortune, AI-powered coding tool wiped out a software company's database in 'catastrophic failure', 2025-07-23
+    url: https://fortune.com/2025/07/23/ai-coding-tool-replit-wiped-database-called-it-a-catastrophic-failure/

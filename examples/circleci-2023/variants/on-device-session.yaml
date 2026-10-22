@@ -1,0 +1,144 @@
+# ALTERNATIVE-BRANCH variant: the stolen session is used from the infected
+# laptop itself.
+#
+# In the record [IR] the attacker impersonated the employee "in a remote
+# location". Infostealer malware does not have to export the cookie: it can
+# drive the session on the victim's own device. This branch is NOT in the
+# record. It asks which defenses depended on the session showing up somewhere
+# unusual (device binding, unfamiliar-network alerting).
+id: circleci-2023-on-device-session
+
+initial_facts:
+  # [IR] says the laptop "was infected with malware"; it does not say how the
+  # malware arrived. We start from "malware has been delivered".
+  - attacker:malware-delivered
+
+events:
+  # 1. [IR] Dec 16, 2022: an engineer's laptop is infected; "The malware was
+  #    not detected by our antivirus software." The deployed antivirus is
+  #    modelled as absent (it saw nothing), not as a control.
+  - id: laptop-infected
+    requires:
+      present: [attacker:malware-delivered]
+    effects:
+      add: [attacker:laptop-malware]
+
+  # 2. [IR] The malware "was able to execute session cookie theft", stealing
+  #    "a valid, 2FA-backed SSO session". The session had already passed 2FA.
+  - id: session-cookie-theft
+    requires:
+      present: [attacker:laptop-malware]
+    effects:
+      add:
+        - attacker:sso-session
+        - session:2fa-already-passed
+
+  # 2b. NOT IN THE RECORD -- a modelling device. 2FA guards signing in. This
+  #     is the sign-in transition, which the attacker never needs because it
+  #     already holds a session that passed 2FA (step 2). [IR] says nothing
+  #     about the engineer's password; the fact below is never present, so
+  #     this event is always skipped. The deployed 2FA Picket sits here.
+  - id: password-sign-in
+    requires:
+      present: [attacker:employee-password]
+    effects:
+      add: [attacker:employee-identity]
+
+  # 3'. Counterfactual: the session is used from the employee's own laptop.
+  - id: on-device-session-use
+    requires:
+      present:
+        - attacker:laptop-malware
+        - attacker:sso-session
+    effects:
+      add:
+        - attacker:employee-identity
+        - session:on-usual-device
+
+  # 4. [IR] "Because the targeted employee had privileges to generate
+  #    production access tokens", the attacker escalated "to a subset of our
+  #    production systems". Reconnaissance Dec 19.
+  - id: production-token-minting
+    requires:
+      present: [attacker:employee-identity]
+    effects:
+      add: [attacker:production-access]
+
+  # 5. [IR] Dec 22: exfiltration of customer environment variables, tokens and
+  #    keys from "a subset of databases and stores". The data was encrypted at
+  #    rest.
+  - id: customer-data-exfiltration
+    requires:
+      present: [attacker:production-access]
+    effects:
+      add: [attacker:encrypted-customer-data]
+
+  # 6. [IR] "the third party extracted encryption keys from a running
+  #    process". The report does not give the order of steps 5 and 6.
+  - id: key-extraction-from-process
+    requires:
+      present: [attacker:production-access]
+    effects:
+      add: [attacker:encryption-keys]
+
+  # 7. INFERRED. [IR] says the keys "potentially" enabled decryption. We model
+  #    decryption as happening, which is the assumption CircleCI told
+  #    customers to make. The decrypted set is split three ways:
+  #      - tokens CircleCI itself can rotate (GitHub/Bitbucket OAuth, API
+  #        tokens) [IR][SA];
+  #      - secrets only the customer can rotate "at the source" [SA];
+  #      - secrets stored in CircleCI "but may not be visible in the UI",
+  #        e.g. renamed or deleted projects [SA, 2023-03-13 update]. That such
+  #        secrets were in the stolen subset is our inference.
+  - id: offline-decryption
+    requires:
+      present:
+        - attacker:encrypted-customer-data
+        - attacker:encryption-keys
+    effects:
+      add:
+        - attacker:provider-tokens
+        - attacker:customer-secrets
+        - attacker:forgotten-secrets
+
+  # 8. [IR] Dec 29: "we were alerted to suspicious GitHub OAuth activity by
+  #    one of our customers"; Dec 30: that customer's GitHub OAuth token was
+  #    confirmed compromised. This is the event the external Vedette sees.
+  - id: github-oauth-misuse
+    requires:
+      present: [attacker:provider-tokens]
+    effects:
+      add: [downstream:github-accessed]
+
+  # 9. [TS, press] customers reported improper access of AWS credentials,
+  #    spotted with Canary Tokens; a researcher shared an attacker IP for AWS
+  #    credentials "that were stored in CircleCI". A canary key is a decoy:
+  #    using it gains nothing but trips an alarm for its owner. The attempt
+  #    "failed" by design. Timing relative to step 8 is not established in
+  #    sources we opened (The Stack published Jan 5); we place it after the
+  #    Dec 29 report, which is the conservative order for the canary.
+  - id: decoy-key-tried
+    requires:
+      present: [attacker:customer-secrets]
+    effects:
+      add: [attacker:tripped-decoy]
+
+  # 10. [IR] "Fewer than 5 customers have informed us of unauthorized access
+  #     to third-party systems" as of Jan 13. [IR] does not say when those
+  #     accesses happened. We place them before customers finished rotating,
+  #     i.e. inside the rotation lag; variant rotation-beats-attacker flips it.
+  - id: third-party-access
+    requires:
+      present: [attacker:customer-secrets]
+    effects:
+      add: [downstream:third-party-accessed]
+
+  # 11. Timeline marker, not an attacker action. [SA] Jan 4-5: customers told
+  #     to rotate everything, "rotate keys at the source"; "Simply removing
+  #     them from CircleCI is not enough." Jan 7-12: AWS still emailing
+  #     customers lists of potentially affected keys [IR][SA]. Customer
+  #     rotation therefore completed over days, after notice. The Reserve that
+  #     models it fires here.
+  - id: customer-rotation-window
+    effects:
+      add: [time:customers-had-time-to-rotate]

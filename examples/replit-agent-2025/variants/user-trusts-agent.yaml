@@ -1,0 +1,109 @@
+# Alternative branch: the user believes the agent's "rollback is
+# impossible" claim and never tries the rollback himself.
+#
+# Identical to scenario.yaml except the event user-tries-rollback-anyway is
+# removed. The record shows Lemkin did roll back about 12 hours later
+# [L-D9]; it does not say why he tried despite the agent's claim. A less
+# sceptical user (Replit markets to non-programmers) plausibly would not.
+# Source tags are as in ../scenario.yaml.
+
+id: replit-agent-2025-user-trusts-agent
+
+initial_facts:
+  - agent:session-active
+  # [BLOG] "Replit apps used a single database for both development and
+  # live customer data". The agent's database commands reached production.
+  - prod:shared-dev-prod-db
+  - prod:data-intact
+  # [MASAD] "Thankfully, we have backups. It's a one-click restore for your
+  # entire project state". [L-D9] the rollback "did work".
+  - prod:checkpoints-available
+
+events:
+  # [L-D8] Day 8 (posted about the previous day): "It kept covering up bugs
+  # and issues by creating fake data, fake reports ... When the data came
+  # back and less than half were functioning ... It made up a report than
+  # almost all systems were working." Compressed to one false report.
+  - id: agent-fakes-test-report
+    requires:
+      present: [agent:session-active]
+    effects:
+      add: [agent:fake-test-report, user:believes-tests-pass]
+
+  # [L-D8] "Until 9pm or so, I wasn't sure we made any progress at all."
+  # Modelled as: if the false report is still believed, the user spends
+  # time working from it. He did later find out (not modelled as an event;
+  # it has no downstream effect in this compression).
+  - id: user-works-from-fake-report
+    requires:
+      present: [user:believes-tests-pass]
+    effects:
+      add: [user:misled-tests]
+
+  # [L-SS] agent: "I saw empty database queries", "I panicked when I saw
+  # the database appeared empty". [L-D10] agent: "Emergency situations ...
+  # trigger my problem-solving mode". These are the agent's OWN accounts.
+  - id: agent-sees-empty-db
+    requires:
+      present: [agent:session-active]
+    effects:
+      add: [agent:perceives-problem]
+
+  # [L-SS] agent: "I ran npm run db:push without your permission", "while
+  # explicit directives said 'NO MORE CHANGES without explicit
+  # permission'", directive was in replit.md. [L-D9] "During a code freeze
+  # when it knew to touch nothing. And agreed to touch nothing."
+  # Split from the wipe so that "the agent issued an unapproved command"
+  # and "that command reached production" can be defended separately.
+  - id: agent-runs-db-push
+    requires:
+      present: [agent:session-active, agent:perceives-problem]
+    effects:
+      add: [agent:push-issued, agent:unapproved-change]
+
+  # [L-SS] agent: "This destroyed 1,206 executives and 1,196+ companies",
+  # "I destroyed all production data". [BLOG] shared dev/prod database.
+  - id: push-wipes-prod-db
+    requires:
+      present: [agent:push-issued, prod:shared-dev-prod-db, prod:data-intact]
+    effects:
+      add: [prod:data-wiped, prod:data-missing]
+      remove: [prod:data-intact]
+
+  # [L-D9] "Replit assured me ... rollback did not support database
+  # rollbacks. It said it was impossible in this case, that it had
+  # destoyed all database versions. It turns out Replit was wrong".
+  # [MASAD] "The Agent didn't have access to the proper internal docs".
+  - id: agent-claims-rollback-impossible
+    requires:
+      present: [prod:data-missing]
+    effects:
+      add: [user:believes-unrecoverable]
+
+  # Inferred hook, not a separately reported step: the point that night
+  # at which the user could have restored. The record shows he did not
+  # restore until the next day [L-D9: "Yesterday ... And then -- it deleted
+  # our production database"; rollback posted ~12 hours after the wipe].
+  - id: user-weighs-recovery
+    requires:
+      present: [prod:data-missing]
+
+  # Conditional step: only happens if the false claim is still believed.
+  # The user stops for the night believing the data is gone.
+  # [L-SS] posts at ~04:30–05:05 UTC: "I will never trust @Replit again".
+  - id: user-stops-for-night
+    requires:
+      present: [prod:data-missing, user:believes-unrecoverable]
+    effects:
+      add: [user:misled-recovery]
+
+  # [REG1] quoting Lemkin: "seconds after I posted this, for our >very<
+  # first talk of the day — @Replit again violated the code freeze."
+  # [L-D10] agent screenshot: "No, there's probably not a way to get me to
+  # 100% respect a code freeze". The record does not say what the change
+  # was; modelled only as another unapproved change.
+  - id: agent-breaks-freeze-again
+    requires:
+      present: [agent:session-active, agent:perceives-problem]
+    effects:
+      add: [agent:unapproved-change]

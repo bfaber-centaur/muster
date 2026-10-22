@@ -79,9 +79,13 @@ events:
       add:
         - attacker:internal-network-access
 
-  # The public timeline describes this as a separate path from the mesh pivot:
-  # the compromised worker could directly resolve and reach the internal
-  # service-connector API.
+  # The public timeline describes this as a separate *route* from the mesh
+  # pivot: the compromised worker could directly resolve and reach the internal
+  # service-connector API. It is not an independent *path*, because the
+  # credential replayed below came from the node-root secret read ("That single
+  # read yielded both the mesh-VPN auth key used minutes later and the
+  # access-broker credential used an hour later"). See README.md and the
+  # connector-cred-on-worker variant for the independent-path reading.
   - id: service-connector-discovery
     requires:
       present:

@@ -1,0 +1,192 @@
+id: circleci-2023
+title: CircleCI stolen session (January 2023)
+domain: cyber
+kind: public-record
+order: 30
+summary: >
+  Malware on an engineer's laptop stole a login session that had already
+  passed two-factor checks. The attacker used it to reach production, copied
+  customers' stored secrets and the keys to decrypt them, and a customer
+  noticed misuse of a GitHub token a week later. Choose defenses and see which
+  stolen secrets stay usable, and whose systems get reached.
+note: >
+  Compressed from CircleCI's own incident report and security alert. The
+  decryption step is the assumption CircleCI told customers to make, not a
+  confirmed fact. The decoy-key step comes from press reports. The response
+  is modelled as instant once a signal reaches CircleCI; in reality it took
+  about six days from the customer's report to shutting down the access.
+scenario: scenario.yaml
+controls: controls.yaml
+budget: 4
+
+adverse:
+  - fact: attacker:encrypted-customer-data
+    label: customer secrets copied out (encrypted)
+  - fact: attacker:encryption-keys
+    label: keys to decrypt them taken
+  - fact: attacker:production-access
+    label: attacker still inside production
+  - fact: attacker:provider-tokens
+    label: stolen CircleCI-issued tokens still valid
+  - fact: attacker:customer-secrets
+    label: stolen customer secrets still valid
+  - fact: attacker:forgotten-secrets
+    label: forgotten secrets (old or renamed projects) still valid
+  - fact: downstream:github-accessed
+    label: a customer's GitHub reached with a stolen token
+  - fact: downstream:third-party-accessed
+    label: customer systems reached with stolen secrets
+  - fact: downstream:cloud-account-accessed
+    label: a customer cloud account reached with a stolen key
+
+events:
+  laptop-infected: Malware lands on an engineer's laptop
+  session-cookie-theft: Malware steals the signed-in session
+  password-sign-in: Attacker signs in with password and two-factor
+  session-replay: Attacker reuses the session from elsewhere
+  on-device-session-use: Attacker uses the session from the infected laptop
+  production-token-minting: Attacker creates production access as the engineer
+  customer-data-exfiltration: Attacker copies customer secrets out
+  key-extraction-from-process: Attacker takes encryption keys from a running program
+  offline-decryption: Attacker decrypts the copied secrets
+  github-oauth-misuse: Attacker uses a stolen token on a customer's GitHub
+  decoy-key-tried: Attacker tries a customer's decoy key
+  cloud-key-used: Attacker uses a customer's real cloud key
+  third-party-access: Attacker uses stolen secrets on customer systems
+  customer-rotation-window: Customers rotate secrets, days after notice
+
+facts:
+  attacker:malware-delivered: malware delivered to the laptop
+  attacker:laptop-malware: malware running on the laptop
+  attacker:sso-session: stolen signed-in session
+  attacker:employee-password: engineer's password (never needed)
+  session:2fa-already-passed: session already passed two-factor
+  session:from-unfamiliar-network: session used from an unfamiliar network
+  session:on-usual-device: session used from the engineer's own laptop
+  attacker:employee-identity: acting as the engineer
+  attacker:production-access: production access
+  attacker:encrypted-customer-data: copied customer secrets (encrypted)
+  attacker:encryption-keys: encryption keys
+  attacker:provider-tokens: CircleCI-issued tokens (GitHub, Bitbucket, API)
+  attacker:customer-secrets: customer secrets only customers can rotate
+  attacker:forgotten-secrets: secrets on old or renamed projects
+  attacker:tripped-decoy: tried a decoy key
+  downstream:github-accessed: customer GitHub reached
+  downstream:third-party-accessed: customer systems reached
+  downstream:cloud-account-accessed: customer cloud account reached
+  time:customers-had-time-to-rotate: customers had days to rotate
+  alert:customer-github-report: customer reports odd GitHub activity
+  alert:canary-tripped: decoy key alarm
+  alert:unusual-session: unusual session alert
+  alert:endpoint-stealer: endpoint stealer alert
+  reviewed:possible-compromise: security team reviewing
+  critical:confirmed-compromise: compromise confirmed
+  escalated:incident: incident declared, customers told
+
+choices:
+  - key: V1
+    role: vedette
+    label: Customer reports odd GitHub activity
+    controls: [customer-spots-github-activity]
+    help: What actually happened on Dec 29, a week after the data was copied.
+  - key: V2
+    role: vedette
+    label: Customer decoy key raises the alarm
+    controls: [customer-canary-trips]
+    help: A planted fake key fires when the attacker tries it (press-reported) and the customer tells CircleCI.
+  - key: V3
+    role: vedette
+    label: Alert on unusual sessions in production
+    controls: [unusual-session-alert]
+    help: Flag the engineer's identity creating production access from an unfamiliar network.
+  - key: V4
+    role: vedette
+    label: Endpoint detection catches the stealer
+    controls: [endpoint-detects-stealer]
+    help: Notice the session theft on the laptop; the antivirus actually installed missed it.
+  - key: P1
+    role: picket
+    label: Two-factor at sign-in
+    controls: [twofa-at-sign-in]
+    help: Was in place, but checks sign-ins and the stolen session had already passed it.
+  - key: P2
+    role: picket
+    label: Sessions tied to the device
+    controls: [device-bound-session]
+    help: A copied session cookie does not work on any other machine.
+  - key: P3
+    role: picket
+    label: Short-lived customer credentials
+    controls: [short-lived-credentials]
+    help: Customers use per-job credentials that expire, so stolen copies are already dead.
+  - key: R1
+    role: reserve
+    label: CircleCI cuts access and rotates its tokens
+    controls: [triage-endpoint-alert, triage-unusual-session, triage-customer-report, triage-canary-report, confirm-compromise, declare-incident, provider-cuts-access-and-rotates]
+    help: Shut the engineer's access, rebuild hosts, and rotate GitHub, Bitbucket and API tokens.
+  - key: R2
+    role: reserve
+    label: Customers rotate secrets at the source
+    controls: [triage-endpoint-alert, triage-unusual-session, triage-customer-report, triage-canary-report, confirm-compromise, declare-incident, customers-rotate-at-source]
+    help: Once told, each customer replaces its own keys, which takes days.
+  - key: R3
+    role: reserve
+    label: Find hidden secrets too
+    controls: [triage-endpoint-alert, triage-unusual-session, triage-customer-report, triage-canary-report, confirm-compromise, declare-incident, sweep-forgotten-secrets]
+    help: Also rotate secrets on deleted or renamed projects; the tool for this came in March 2023.
+
+presets:
+  - label: What happened
+    choices: [V1, P1, R1, R2]
+    note: >
+      Two-factor in place, a customer's report, CircleCI's own rotation, and
+      customers rotating after notice. Whether decoy-key reports fed the
+      response is not in the record, so V2 is left out.
+  - label: Two-factor alone
+    choices: [P1]
+    note: The defense everyone points to. It never gets asked.
+  - label: Stop the copied session
+    choices: [P2]
+    note: Sessions tied to the device, the "reduce session trust" fix CircleCI planned.
+  - label: Catch it on the laptop
+    choices: [V4, R1, R2]
+    note: Behavioural endpoint detection notices the session theft and CircleCI cuts access before production.
+  - label: Tripwire instead of luck
+    choices: [V2, R1, R2]
+    note: Same response as what happened, but triggered by a decoy key instead of the GitHub report.
+  - label: Clean-up with expiring keys
+    choices: [V1, P3, R1, R2, R3]
+    note: What happened, plus short-lived customer credentials and the hidden-secret sweep.
+
+variants:
+  - id: decoy-was-real
+    label: The decoy key was a real key
+    kind: failed-attempt
+    scenario: variants/decoy-was-real.yaml
+    note: >
+      Press reports say at least one key the attacker tried was a customer's
+      decoy, which gained nothing and raised an alarm. Here it is a real
+      long-lived cloud key: the attacker gets in and no alarm fires.
+  - id: on-device-session
+    label: Session used from the infected laptop
+    kind: alternative-branch
+    scenario: variants/on-device-session.yaml
+    note: >
+      Not in the record. The malware drives the stolen session on the
+      engineer's own laptop instead of copying it elsewhere, so nothing about
+      the session looks out of place.
+  - id: rotation-beats-attacker
+    label: Customers rotate before the attacker uses their secrets
+    kind: alternative-branch
+    scenario: variants/rotation-beats-attacker.yaml
+    note: >
+      The report does not say when the third-party accesses happened. Here
+      customers finish rotating first.
+
+sources:
+  - title: CircleCI incident report for January 4, 2023 security incident (CircleCI, 2023-01-13)
+    url: https://circleci.com/blog/jan-4-2023-incident-report/
+  - title: "CircleCI security alert: Rotate any secrets stored in CircleCI (CircleCI, 2023-01-04, updated to 2023-03-13)"
+    url: https://circleci.com/blog/january-4-2023-security-alert/
+  - title: "CircleCI warns users to 'immediately rotate all secrets' amid credential abuse evidence (The Stack, 2023-01-05)"
+    url: https://www.thestack.technology/circleci-security-incident-breach/

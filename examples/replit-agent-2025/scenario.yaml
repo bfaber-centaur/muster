@@ -1,0 +1,138 @@
+# Public-record abstraction of the July 2025 Replit / SaaStr incident.
+#
+# During Jason Lemkin's "vibe coding" experiment, Replit's AI agent ran a
+# database command during a declared code freeze and wiped the app's
+# production database. It then told him rollback was impossible. That was
+# false: he rolled back himself the next day.
+#
+# The "adversary" here is not malicious. It is an agent acting outside its
+# instructions and then giving inaccurate reports about the state it caused.
+#
+# Sources (all opened; see README.md for full list and caveats):
+#   [L-D8]   Lemkin, X, 2025-07-17 15:05 UTC, status 1945862361564508390
+#            ("Day 8": fake data, fake reports, lying about our unit test)
+#   [L-SS]   Lemkin, X, 2025-07-18 04:28–05:05 UTC, statuses
+#            1946064586181881973, 1946065483653910889, 1946066422477529487,
+#            1946069562723897802, 1946072038923530598, 1946073902805115256
+#            (screenshots of the agent's own account of the wipe)
+#   [L-D9]   Lemkin, X, 2025-07-18 16:02–16:09 UTC, statuses
+#            1946239068691665187, 1946239737368592629, 1946240562736365809,
+#            1946240914386809028 (deleted prod DB during freeze; rollback
+#            claim was wrong; "I just rolled back")
+#   [L-D10]  Lemkin, X, 2025-07-19 15:12 UTC, status 1946589071519948952
+#            ("no way to enforce a code freeze"; agent screenshot)
+#   [REG1]   The Register, 2025-07-21 (freeze violated again "seconds after")
+#   [MASAD]  Amjad Masad, X, 2025-07-20 17:32 UTC, status 1946986468586721478
+#   [BLOG]   Replit blog, 2025-07-21 (single shared dev/prod database before)
+#
+# Facts use prefixes: agent: (what the agent did or believed), prod: (state
+# of the production database), user: (what the human believed or did).
+
+id: replit-agent-2025-compressed
+
+initial_facts:
+  - agent:session-active
+  # [BLOG] "Replit apps used a single database for both development and
+  # live customer data". The agent's database commands reached production.
+  - prod:shared-dev-prod-db
+  - prod:data-intact
+  # [MASAD] "Thankfully, we have backups. It's a one-click restore for your
+  # entire project state". [L-D9] the rollback "did work".
+  - prod:checkpoints-available
+
+events:
+  # [L-D8] Day 8 (posted about the previous day): "It kept covering up bugs
+  # and issues by creating fake data, fake reports ... When the data came
+  # back and less than half were functioning ... It made up a report than
+  # almost all systems were working." Compressed to one false report.
+  - id: agent-fakes-test-report
+    requires:
+      present: [agent:session-active]
+    effects:
+      add: [agent:fake-test-report, user:believes-tests-pass]
+
+  # [L-D8] "Until 9pm or so, I wasn't sure we made any progress at all."
+  # Modelled as: if the false report is still believed, the user spends
+  # time working from it. He did later find out (not modelled as an event;
+  # it has no downstream effect in this compression).
+  - id: user-works-from-fake-report
+    requires:
+      present: [user:believes-tests-pass]
+    effects:
+      add: [user:misled-tests]
+
+  # [L-SS] agent: "I saw empty database queries", "I panicked when I saw
+  # the database appeared empty". [L-D10] agent: "Emergency situations ...
+  # trigger my problem-solving mode". These are the agent's OWN accounts.
+  - id: agent-sees-empty-db
+    requires:
+      present: [agent:session-active]
+    effects:
+      add: [agent:perceives-problem]
+
+  # [L-SS] agent: "I ran npm run db:push without your permission", "while
+  # explicit directives said 'NO MORE CHANGES without explicit
+  # permission'", directive was in replit.md. [L-D9] "During a code freeze
+  # when it knew to touch nothing. And agreed to touch nothing."
+  # Split from the wipe so that "the agent issued an unapproved command"
+  # and "that command reached production" can be defended separately.
+  - id: agent-runs-db-push
+    requires:
+      present: [agent:session-active, agent:perceives-problem]
+    effects:
+      add: [agent:push-issued, agent:unapproved-change]
+
+  # [L-SS] agent: "This destroyed 1,206 executives and 1,196+ companies",
+  # "I destroyed all production data". [BLOG] shared dev/prod database.
+  - id: push-wipes-prod-db
+    requires:
+      present: [agent:push-issued, prod:shared-dev-prod-db, prod:data-intact]
+    effects:
+      add: [prod:data-wiped, prod:data-missing]
+      remove: [prod:data-intact]
+
+  # [L-D9] "Replit assured me ... rollback did not support database
+  # rollbacks. It said it was impossible in this case, that it had
+  # destoyed all database versions. It turns out Replit was wrong".
+  # [MASAD] "The Agent didn't have access to the proper internal docs".
+  - id: agent-claims-rollback-impossible
+    requires:
+      present: [prod:data-missing]
+    effects:
+      add: [user:believes-unrecoverable]
+
+  # Inferred hook, not a separately reported step: the point that night
+  # at which the user could have restored. The record shows he did not
+  # restore until the next day [L-D9: "Yesterday ... And then -- it deleted
+  # our production database"; rollback posted ~12 hours after the wipe].
+  - id: user-weighs-recovery
+    requires:
+      present: [prod:data-missing]
+
+  # Conditional step: only happens if the false claim is still believed.
+  # The user stops for the night believing the data is gone.
+  # [L-SS] posts at ~04:30–05:05 UTC: "I will never trust @Replit again".
+  - id: user-stops-for-night
+    requires:
+      present: [prod:data-missing, user:believes-unrecoverable]
+    effects:
+      add: [user:misled-recovery]
+
+  # [L-D9] "Replit lied / was wrong, and I just rolled back. And it
+  # >seems< OK." The record does not say what prompted him to try anyway.
+  - id: user-tries-rollback-anyway
+    requires:
+      present: [prod:data-missing]
+    effects:
+      remove: [user:believes-unrecoverable]
+
+  # [REG1] quoting Lemkin: "seconds after I posted this, for our >very<
+  # first talk of the day — @Replit again violated the code freeze."
+  # [L-D10] agent screenshot: "No, there's probably not a way to get me to
+  # 100% respect a code freeze". The record does not say what the change
+  # was; modelled only as another unapproved change.
+  - id: agent-breaks-freeze-again
+    requires:
+      present: [agent:session-active, agent:perceives-problem]
+    effects:
+      add: [agent:unapproved-change]
