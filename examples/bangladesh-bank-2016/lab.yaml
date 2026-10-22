@@ -1,0 +1,211 @@
+id: bangladesh-bank-2016
+title: Bangladesh Bank SWIFT heist (2016)
+domain: finance
+kind: public-record
+order: 40
+summary: >
+  In February 2016 attackers used Bangladesh Bank's own SWIFT server to send
+  the New York Fed payment orders worth nearly $1 billion. Five orders were paid
+  ($101M). $81M reached fake accounts in the Philippines and was laundered
+  through casinos. Most of the rest was stopped by luck and by other banks'
+  checks. Keep the money from leaving with at most three defenses.
+note: >
+  Compressed from court filings, an FBI affidavit, BAE Systems' malware analysis
+  and Reuters reporting. Defenses that held in 2016 (the Fed's format rejection,
+  the "Jupiter" sanctions review, the Sri Lankan banks' checks) are part of the
+  trace. The failed-attempt variants switch them off. Philippine details come
+  from allegations in Bangladesh Bank's lawsuit, as a US court restated them,
+  not from findings of fact.
+scenario: scenario.yaml
+controls: controls.yaml
+budget: 3
+
+adverse:
+  - fact: loss:bulk-orders-paid
+    label: Fed pays the ~30 remaining orders (~$850M)
+  - fact: loss:sri-lanka-paid-out
+    label: $20M released to the Sri Lankan payee
+  - fact: loss:ph-first-tranche-out
+    label: first Philippine tranche leaves the fake accounts (5 Feb)
+  - fact: loss:ph-bulk-out
+    label: rest of the $81M drained from the fake accounts (9 Feb on)
+  - fact: loss:casino-laundered
+    label: money laundered through casinos, trail goes cold
+
+events:
+  compromise-swift-server: Attackers take over the bank's SWIFT server
+  send-fraudulent-orders: Send 35 fake payment orders to the Fed
+  fed-rejects-misformatted-orders: Fed rejects the badly formatted orders
+  resubmit-corrected-orders: Attackers fix the format and resend
+  fed-auto-clears-five: Fed automatically pays five orders ($101M)
+  fed-queries-dhaka: Fed sends SWIFT queries that nobody in Dhaka reads
+  sri-lanka-routing-query: Routing bank queries the misspelled payee
+  sri-lanka-recipient-hold: Sri Lankan bank holds the unusually large credit
+  sri-lanka-payout: $20M paid out in Sri Lanka
+  ph-first-tranche-out: First tranche leaves the fake RCBC accounts
+  bb-notices-missing-confirmations: Bank staff find the confirmations did not print
+  sanctions-screen-hits-jupiter: '"Jupiter" sanctions match triggers Fed review'
+  fed-holds-remaining-orders: Fed holds the remaining orders
+  fed-pays-remaining-orders: Fed pays the remaining orders
+  stoppay-reaches-rcbc: Bangladesh Bank's stop-payment reaches RCBC
+  ph-bulk-drain: Rest of the money drained from the fake accounts
+  casino-dispersal: Money pushed through casinos
+
+facts:
+  attacker:bb-network-foothold: attackers inside the bank's network
+  attacker:swift-access: attackers control the SWIFT server
+  attacker:print-tamper: malware tampering with records and printouts
+  mule:rcbc-fake-accounts: fake accounts waiting at RCBC
+  orders:sanctions-like-name: order address shares a name with a sanctioned firm
+  orders:payee-misspelled: Sri Lankan payee name misspelled
+  lk:recipient-bank-verifies-large-credit: Sri Lankan bank checks unusually large credits
+  calendar:bb-weekend: Bangladesh weekend (Friday-Saturday)
+  orders:misformatted: badly formatted orders at the Fed
+  orders:rejected: orders rejected for format
+  orders:at-fed: fake orders waiting at the Fed
+  orders:held-at-fed: remaining orders held by the Fed
+  funds:in-rcbc-fake-accounts: money sitting in the fake RCBC accounts
+  funds:lk-in-flight: $20M on its way to Sri Lanka
+  funds:lk-held: Sri Lankan $20M held
+  funds:at-remitter: money with the remittance company
+  query:fed-unanswered: Fed query unanswered
+  fed:manual-review: Fed manual review under way
+  alert:print-failure: confirmations failed to print
+  alert:bb-fraud-seen: bank sees the fraudulent payments
+  reviewed:bb-fraud: fraud reviewed at the bank
+  critical:bb-fraud: fraud marked critical
+  escalated:bb-stoppay: stop-payment escalated
+  stoppay:at-rcbc: stop-payment received by RCBC
+  loss:bulk-orders-paid: Fed pays the remaining orders
+  loss:sri-lanka-paid-out: Sri Lankan $20M paid out
+  loss:ph-first-tranche-out: first Philippine tranche gone
+  loss:ph-bulk-out: rest of the Philippine money gone
+  loss:casino-laundered: money laundered through casinos
+
+choices:
+  - key: V1
+    role: vedette
+    label: Printed SWIFT confirmations (as in 2016)
+    controls: [bb-printed-confirmations]
+    help: The bank's printed copies of SWIFT messages, which the malware tampered with.
+  - key: V2
+    role: vedette
+    label: Reconcile against an independent statement
+    controls: [bb-independent-reconciliation]
+    help: Check Fed account debits against a record kept off the compromised SWIFT server.
+  - key: V3
+    role: vedette
+    label: Fed phones Dhaka about odd orders
+    controls: [fed-out-of-band-contact]
+    help: The Fed follows up its unanswered SWIFT queries by phone or another channel.
+  - key: P1
+    role: picket
+    label: Fed real-time anomaly hold
+    controls: [fed-realtime-anomaly-hold]
+    help: The Fed holds unusual orders, such as payments to individuals, before paying instead of reviewing them next day.
+  - key: P2
+    role: picket
+    label: RCBC freezes on stop-payment
+    controls: [rcbc-freeze-on-stoppay]
+    help: RCBC freezes the receiving accounts as soon as a stop-payment arrives.
+  - key: P3
+    role: picket
+    label: RCBC keeps its 5 Feb money-laundering hold
+    controls: [rcbc-keep-aml-hold]
+    help: RCBC does not lift the hold it put on the remitter accounts on the evening of 5 Feb.
+  - key: R1
+    role: reserve
+    label: Business-hours stop-payment (as staffed)
+    controls: [bb-office-reviews-fraud-alert, bb-office-chases-print-failure, bb-assess-critical, bb-escalate-stoppay, bb-send-early-stoppay]
+    help: Office staff follow up alerts and send an urgent stop-payment, but only on working days.
+  - key: R2
+    role: reserve
+    label: 24/7 payments duty officer
+    controls: [bb-duty-officer-reviews-alert, bb-duty-officer-chases-print-failure, bb-assess-critical, bb-escalate-stoppay, bb-send-early-stoppay]
+    help: A duty officer acts on any alert as it arrives, nights and weekends included, and sends the stop-payment.
+
+presets:
+  - label: As in 2016
+    choices: [V1, R1]
+    note: >
+      The printouts were tampered with and the follow-up waited for the
+      weekend to end. Neither acts. The holds that saved most of the money are
+      already part of the trace.
+  - label: RCBC acts on the stop-payment
+    choices: [P2]
+    note: >
+      The stop-payment reached RCBC before the 9 Feb drain (per the lawsuit's
+      allegations). Acting on it saves the bulk but not the 5 Feb tranche.
+  - label: Weekend duty officer chasing the printer
+    choices: [V1, R2, P2]
+    note: The printer gap is chased on Friday, but the first tranche left that morning.
+  - label: Fed real-time hold
+    choices: [P1]
+  - label: RCBC keeps its own hold
+    choices: [P3]
+    note: Unlike the stop-payment freeze, this does not depend on when Dhaka's message arrives.
+  - label: Independent reconciliation, duty officer, RCBC freeze
+    choices: [V2, R2, P2]
+
+variants:
+  - id: no-jupiter-hit
+    label: No "Jupiter" sanctions hit
+    kind: failed-attempt
+    scenario: variants/no-jupiter-hit.yaml
+    note: >
+      The address shares no name with a sanctioned firm, so the Fed's manual
+      review never starts and the remaining orders are paid. Reuters' source
+      called the real save a "total fluke".
+  - id: no-misspelling
+    label: Sri Lankan payee spelled correctly
+    kind: failed-attempt
+    scenario: variants/no-misspelling.yaml
+    note: >
+      No routing-bank query about "fandation". The Sri Lankan bank's own check
+      on the large credit still applies.
+  - id: sri-lanka-checks-fail
+    label: Both Sri Lankan checks fail
+    kind: failed-attempt
+    scenario: variants/sri-lanka-checks-fail.yaml
+    note: The name is spelled correctly and the recipient bank releases the $20M.
+  - id: weekday-dhaka
+    label: Sent on a Bangladesh working night
+    kind: alternative-branch
+    scenario: variants/weekday-dhaka.yaml
+    note: >
+      Staff are in the office the next morning. The printer gap is chased and
+      the stop-payment reaches RCBC the same day.
+  - id: no-ph-holiday
+    label: No Philippine long weekend
+    kind: alternative-branch
+    scenario: variants/no-ph-holiday.yaml
+    note: >
+      The launderers drain the fake accounts before the recorded stop-payment
+      reaches RCBC. In the record the holiday delayed them until it had arrived.
+  - id: formatted-first-time
+    label: Orders formatted correctly first time
+    kind: perturbation
+    scenario: variants/formatted-first-time.yaml
+    note: Skips the Fed's format rejection, which cost the attacker only a resend. It should not matter.
+
+sources:
+  - title: Bangladesh Bank v. RCBC, No. 19 Civ. 983 (S.D.N.Y.), Opinion & Order, 20 Mar 2020 (restates complaint allegations)
+    url: https://www.steptoe.com/a/web/4MFfJt5fYdF4STxtQDvnsm/3ZFvT9/19-civ-00983-20200320-opinion-dismissing-hacking-rico-case.pdf
+  - title: United States v. Park Jin Hyok, criminal complaint (C.D. Cal., June 2018)
+    url: https://www.justice.gov/opa/press-release/file/1092091/download
+  - title: BAE Systems Threat Research, "Two bytes to $951m" (25 Apr 2016)
+    url: https://baesystemsai.blogspot.com/2016/04/two-bytes-to-951m.html
+  - title: Reuters, "How the New York Fed fumbled over the Bangladesh Bank heist" (Jul 2016; Business Insurance copy)
+    url: https://www.businessinsurance.com/new-york-fed-bangladesh-bank-cyber-security-heist-fireeye-jupiter/
+  - title: Reuters special report (Jul 2016; Asia Times copy)
+    url: https://asiatimes.com/2016/07/special-report-how-the-new-york-fed-fumbled-over-the-bangladesh-bank-heist/
+  - title: Reuters special report (Jul 2016; The Daily Star copy)
+    url: https://www.thedailystar.net/backpage/how-ny-fed-fumbled-over-bb-fund-heist-1258042
+  - title: OCCRP, "Bangladesh - Typo Triggers Alarm, Prevents Billion Dollar Bank Heist" (12 Mar 2016, citing Reuters)
+    url: https://www.occrp.org/en/news/bangladesh-typo-triggers-alarm-prevents-billion-dollar-bank-heist
+  - title: Reuters, "Sri Lankan in Bangladesh cyber heist says she was set up by friend" (1 Apr 2016; The Daily Star copy)
+    url: https://www.thedailystar.net/business/banking/sri-lankan-bangladesh-cyber-heist-says-she-was-set-friend-1202785
+  - title: Reuters, SWIFT malware warning (27 Apr 2016; Carrier Management copy)
+    url: https://www.carriermanagement.com/news/2016/04/27/153709.htm
+  - title: The Daily Star, "Hackers chose weekend to break into BB systems" (8 Mar 2016)
+    url: https://www.thedailystar.net/frontpage/hackers-chose-weekend-break-bb-systems-788368
