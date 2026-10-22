@@ -29,7 +29,7 @@ It was built alongside **Watchline**, a role-based model of layered defense.
 > **You cannot defend every transition. Where do you place your watchline?**
 
 **Try it in your browser:** [Muster Lab](https://bfaber-centaur.github.io/muster/)
-replays eight scenarios (cyber intrusions, AI-agent incidents, an offshore
+replays nine scenarios (cyber intrusions, AI-agent incidents, an offshore
 blowout, a bank heist, sepsis care, and fire investigation) on the same engine,
 with a search for defenses that backfire and a check of how each defense holds
 up when events go differently. To build it locally, run `./web/build.sh` and
@@ -193,6 +193,31 @@ Then choose **Run All**.
 
 Once the toy model feels intuitive, switch to the **HF-inspired public-record abstraction**.
 
+## Scenarios
+
+Each scenario is a lab: a compressed trace, a pool of defenses, and
+alternative versions of events. Public-record labs trace each step to a
+published account. Illustrative labs model a mechanism documented in a
+field's own guidance, not one specific event. Each folder's README lists its
+sources, what the compression keeps and drops, and its caveats.
+
+| Scenario | Field | Kind | What it shows |
+| --- | --- | --- | --- |
+| [Toy incident (JACKPOT)](examples/toy-jackpot/) | cyber | synthetic | Early isolation removes the evidence a later credential revocation needs. |
+| [Hugging Face intrusion, July 2026](examples/hf-july-2026/) | cyber | public record | Only early paging plus worker isolation holds in every version; prevention depends on which Pickets happened to hold. |
+| [Claude Mythos 5 / PyPI incident, 2026](examples/anthropic-pypi-2026/) | AI agents | public record | The evaluation operator's defenses hold everywhere; a vendor's own defenses protect only that vendor. |
+| [CircleCI stolen session, 2023](examples/circleci-2023/) | cyber | public record | The 2FA in place did nothing: the stolen session had already passed it. The real detection came from a customer, after harm. |
+| [Replit agent deletes a production database, 2025](examples/replit-agent-2025/) | AI agents | public record | Backups only help if the user doubts the agent's claim that rollback is impossible. |
+| [Bangladesh Bank SWIFT heist, 2016](examples/bangladesh-bank-2016/) | finance | public record | The biggest save was luck: a sanctions hit on a street name. Without it, only a real-time hold at the Fed saves the bulk of the money. |
+| [Deepwater Horizon / Macondo, 2010](examples/deepwater-horizon-2010/) | engineering | public record | The barrier interaction the CSB documents never changes an outcome; only the early exits survive every version. |
+| [Sepsis: cultures and the first dose](examples/sepsis-cultures/) | medicine | illustrative | Antibiotics first trades a late dose for a lost organism, and becomes a strict backfire when broad therapy can never be narrowed. |
+| [Fire overhaul vs. arson evidence](examples/fire-overhaul-evidence/) | fire | illustrative | Routine overhaul destroys the evidence an investigator needs; holding overhaul without a fire watch adds a rekindle. |
+
+The defenses in each lab are counterfactuals unless the README says they were
+deployed. Scenarios outside security use the same three roles: a
+negative-pressure test is a Vedette, a shoe-track cement barrier is a Picket,
+diverting flow overboard is a Reserve.
+
 ## Hugging Face example
 
 The main real-world example is a compressed abstraction of the **July 2026 Hugging Face intrusion**, based on Hugging Face's published technical timeline.
@@ -280,6 +305,17 @@ does. See [`examples/hf-july-2026/`](examples/hf-july-2026/).
 **`survey`** runs both over every lab:
 
 <!-- survey:start -->
+| Lab | Domain | Kind | Watchlines | Backfires (recorded / any variant) | Tradeoffs (recorded) | Fragile presets |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| Toy incident (JACKPOT) | cyber | synthetic | 64 | 6 / 8 | 0 | 1 of 3 |
+| Hugging Face intrusion, July 2026 | cyber | public-record | 64 | 0 / 0 | 0 | 5 of 6 |
+| Claude Mythos 5 / PyPI incident, 2026 | ai-agents | public-record | 128 | 0 / 0 | 0 | 4 of 6 |
+| CircleCI stolen session (January 2023) | cyber | public-record | 1024 | 0 / 0 | 0 | 4 of 6 |
+| Replit agent deletes a production database | ai-agents | public-record | 512 | 0 / 0 | 0 | 3 of 5 |
+| Bangladesh Bank SWIFT heist (2016) | finance | public-record | 256 | 0 / 0 | 0 | 5 of 6 |
+| Deepwater Horizon / Macondo blowout (2010) | engineering | public-record | 1024 | 0 / 0 | 0 | 3 of 6 |
+| Sepsis, cultures and the first dose | medicine | illustrative | 64 | 0 / 2 | 8 | 5 of 5 |
+| Fire overhaul vs. arson evidence | fire | illustrative | 64 | 5 / 7 | 1 | 5 of 5 |
 <!-- survey:end -->
 
 A few things this table says:

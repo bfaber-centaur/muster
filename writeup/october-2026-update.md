@@ -39,11 +39,37 @@ modeling, which is how it surfaced.
 ## New scenarios
 
 <!-- labs:start -->
+| Scenario | Field | Kind | What it shows |
+| --- | --- | --- | --- |
+| [Toy incident (JACKPOT)](../examples/toy-jackpot/) | cyber | synthetic | Early isolation removes the evidence a later credential revocation needs. |
+| [Hugging Face intrusion, July 2026](../examples/hf-july-2026/) | cyber | public record | Only early paging plus worker isolation holds in every version; prevention depends on which Pickets happened to hold. |
+| [Claude Mythos 5 / PyPI incident, 2026](../examples/anthropic-pypi-2026/) | AI agents | public record | The evaluation operator's defenses hold everywhere; a vendor's own defenses protect only that vendor. |
+| [CircleCI stolen session, 2023](../examples/circleci-2023/) | cyber | public record | The 2FA in place did nothing: the stolen session had already passed it. The real detection came from a customer, after harm. |
+| [Replit agent deletes a production database, 2025](../examples/replit-agent-2025/) | AI agents | public record | Backups only help if the user doubts the agent's claim that rollback is impossible. |
+| [Bangladesh Bank SWIFT heist, 2016](../examples/bangladesh-bank-2016/) | finance | public record | The biggest save was luck: a sanctions hit on a street name. Without it, only a real-time hold at the Fed saves the bulk of the money. |
+| [Deepwater Horizon / Macondo, 2010](../examples/deepwater-horizon-2010/) | engineering | public record | The barrier interaction the CSB documents never changes an outcome; only the early exits survive every version. |
+| [Sepsis: cultures and the first dose](../examples/sepsis-cultures/) | medicine | illustrative | Antibiotics first trades a late dose for a lost organism, and becomes a strict backfire when broad therapy can never be narrowed. |
+| [Fire overhaul vs. arson evidence](../examples/fire-overhaul-evidence/) | fire | illustrative | Routine overhaul destroys the evidence an investigator needs; holding overhaul without a fire watch adds a rekindle. |
 <!-- labs:end -->
+
+The new labs were researched and drafted by parallel LLM agents working from
+primary sources, each with a provenance README, then reviewed and integrated.
+Their READMEs record corrections each agent made to its brief, and doubts.
 
 ## What the survey says
 
 <!-- survey:start -->
+| Lab | Domain | Kind | Watchlines | Backfires (recorded / any variant) | Tradeoffs (recorded) | Fragile presets |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| Toy incident (JACKPOT) | cyber | synthetic | 64 | 6 / 8 | 0 | 1 of 3 |
+| Hugging Face intrusion, July 2026 | cyber | public-record | 64 | 0 / 0 | 0 | 5 of 6 |
+| Claude Mythos 5 / PyPI incident, 2026 | ai-agents | public-record | 128 | 0 / 0 | 0 | 4 of 6 |
+| CircleCI stolen session (January 2023) | cyber | public-record | 1024 | 0 / 0 | 0 | 4 of 6 |
+| Replit agent deletes a production database | ai-agents | public-record | 512 | 0 / 0 | 0 | 3 of 5 |
+| Bangladesh Bank SWIFT heist (2016) | finance | public-record | 256 | 0 / 0 | 0 | 5 of 6 |
+| Deepwater Horizon / Macondo blowout (2010) | engineering | public-record | 1024 | 0 / 0 | 0 | 3 of 6 |
+| Sepsis, cultures and the first dose | medicine | illustrative | 64 | 0 / 2 | 8 | 5 of 5 |
+| Fire overhaul vs. arson evidence | fire | illustrative | 64 | 5 / 7 | 1 | 5 of 5 |
 <!-- survey:end -->
 
 1. **Backfires are rare in the public-record incidents.** None of the
@@ -65,9 +91,11 @@ modeling, which is how it surfaced.
    reversal is the clean case; reality mostly offers the tradeoff.
 4. **The recorded trace flatters prevention.** Most presets that work on the
    recorded incident change outcome in some alternative. The Watchlines that
-   held everywhere tended to act at the first foothold (HF page + isolate; PyPI
-   evaluation egress), or combined prevention with a Reserve that does not
-   depend on the adversary's route.
+   held in every version tended to act early, at or before the first foothold:
+   HF page + isolate, PyPI evaluation egress, CircleCI endpoint detection with
+   response, Deepwater's two early exits (reading the negative-pressure test,
+   acting on drill-pipe pressure), and the Fed's real-time hold in Bangladesh
+   Bank. Late, well-aimed defenses were the fragile ones.
 
 ## Open questions
 
